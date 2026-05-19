@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/v1/errsense/report/owner-review",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer mock-errsense-token"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    },
+    "jsonBody": {
+      "errCases": [
+        {
+          "id": 1,
+          "pattern": "NullPointerException at CheckoutPricingService",
+          "lastAppearTime": "2026-03-18 14:20 UTC",
+          "ownerApprovalStatus": "Resolved",
+          "ownerExplanation": "Fix merged in release/24.03 and verified with re-run of pricing regression.",
+          "actionInHigherEnv": "Disable promotion campaign and rollback pricing config if reappears in prod."
+        },
+        {
+          "id": 2,
+          "pattern": "Timeout while calling customer-preference API",
+          "lastAppearTime": "2026-03-19 09:45 UTC",
+          "ownerApprovalStatus": "ExistLowImpact",
+          "ownerExplanation": "Issue is isolated to bulk backfill jobs and does not affect synchronous checkout.",
+          "actionInHigherEnv": "Pause replay jobs, scale worker pool, and reprocess backlog after API health recovers."
+        }
+      ]
+    }
+  }
+}

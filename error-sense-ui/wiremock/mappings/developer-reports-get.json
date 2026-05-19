@@ -1,0 +1,46 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/v1/errsense/report/dev-summary",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer mock-errsense-token"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    },
+    "jsonBody": {
+      "errCases": [
+        {
+          "id": 1,
+          "pattern": "NullPointerException at CheckoutPricingService",
+          "appearTimes": 42,
+          "rootCauseAnalysis": "Pricing payload omits discount config when fallback rules are empty.",
+          "suggestion": "Validate promotion rules before calculating totals and add guard rails in mapper.",
+          "level": "Critical"
+        },
+        {
+          "id": 2,
+          "pattern": "Timeout while calling customer-preference API",
+          "appearTimes": 17,
+          "rootCauseAnalysis": "Retry chain saturates the thread pool during large batch replay jobs.",
+          "suggestion": "Reduce retry fan-out and move replay traffic onto a separate worker queue.",
+          "level": "High"
+        },
+        {
+          "id": 3,
+          "pattern": "Duplicate key violation on order_audit table",
+          "appearTimes": 8,
+          "rootCauseAnalysis": "Idempotency key is generated after event retries and changes across attempts.",
+          "suggestion": "Persist the original correlation id and reuse it for audit write deduplication.",
+          "level": "Medium"
+        }
+      ]
+    }
+  }
+}

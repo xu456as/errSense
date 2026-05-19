@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "PUT",
+    "urlPattern": "/api/v1/errsense/report/owner-review/[0-9]+",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer mock-errsense-token"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    },
+    "transformers": [
+      "response-template"
+    ],
+    "jsonBody": {
+      "id": "{{request.pathSegments.[5]}}",
+      "pattern": "Updated locally in WireMock",
+      "lastAppearTime": "2026-03-21 10:00 UTC",
+      "ownerApprovalStatus": "{{jsonPath request.body '$.ownerApprovalStatus'}}",
+      "ownerExplanation": "{{jsonPath request.body '$.ownerExplanation'}}",
+      "actionInHigherEnv": "{{jsonPath request.body '$.actionInHigherEnv'}}"
+    }
+  }
+}
