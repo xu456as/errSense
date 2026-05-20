@@ -1,4 +1,4 @@
-package me.agentic.errSense;
+package me.agentic.errsense;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

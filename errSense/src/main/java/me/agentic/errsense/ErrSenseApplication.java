@@ -1,4 +1,4 @@
-package me.agentic.errSense;
+package me.agentic.errsense;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

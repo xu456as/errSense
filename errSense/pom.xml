@@ -30,10 +30,10 @@
 		<java.version>17</java.version>
 	</properties>
 	<dependencies>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-jdbc</artifactId>
-		</dependency>
+<!--		<dependency>-->
+<!--			<groupId>org.springframework.boot</groupId>-->
+<!--			<artifactId>spring-boot-starter-jdbc</artifactId>-->
+<!--		</dependency>-->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-restclient</artifactId>
@@ -114,6 +114,45 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<!-- https://mvnrepository.com/artifact/cz.habarta.typescript-generator/typescript-generator-maven-plugin -->
+				<groupId>cz.habarta.typescript-generator</groupId>
+				<artifactId>typescript-generator-maven-plugin</artifactId>
+				<version>3.2.1263</version>
+				<executions>
+					<execution>
+						<id>generate</id>
+						<goals>
+							<goal>generate</goal>
+						</goals>
+						<phase>process-classes</phase>
+					</execution>
+				</executions>
+				<configuration>
+					<jsonLibrary>jackson2</jsonLibrary>
+					<classPatterns>
+						<pattern>me.agentic.errsense.contract.**</pattern>
+					</classPatterns>
+					<excludeClassPatterns>
+						<pattern>me.agentic.errsense.contract.**Builder</pattern>
+					</excludeClassPatterns>
+					<customTypeMappings>
+						<typeMapping>java.util.Date:string</typeMapping>
+					</customTypeMappings>
+					<mapEnum>
+						asEnum
+					</mapEnum>
+					<outputFile>../error-sense-ui/src/api/contract.ts</outputFile>
+					<optionalAnnotations>
+						<optionalAnnotation>jakarta.annotation.Nullable</optionalAnnotation>
+					</optionalAnnotations>
+					<outputFileType>implementationFile</outputFileType>
+					<mapPackagesToNamespaces>false</mapPackagesToNamespaces>
+					<outputKind>module</outputKind>
+
+				</configuration>
+
 			</plugin>
 		</plugins>
 	</build>

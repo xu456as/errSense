@@ -23,6 +23,9 @@ import { PageHeader } from '../components/PageHeader';
 import { useReportRequest } from '../hooks/useReportRequest';
 import { DeveloperFilters, DeveloperReportItem } from '../types/report';
 import { downloadCsv } from '../utils/export';
+import { useErrReportStore } from '../stores/ErrReportStore';
+import { CriticalLevel } from '../api/contract';
+import { ErrReportItem } from '../api/contract';
 
 const defaultFilters: DeveloperFilters = {
   appId: '',
@@ -38,32 +41,35 @@ function areDeveloperFiltersEqual(left: DeveloperFilters, right: DeveloperFilter
   );
 }
 
-function levelColor(level: DeveloperReportItem['level']) {
-  if (level === 'Critical') {
+function levelColor(level: CriticalLevel) {
+  if (level === CriticalLevel.High) {
     return 'error';
   }
-  if (level === 'High') {
+  if (level === CriticalLevel.Low) {
     return 'warning';
   }
-  if (level === 'Medium') {
+  if (level === CriticalLevel.NoImpact) {
     return 'info';
   }
   return 'success';
 }
 
 export function DeveloperReportPage() {
+  const errItems = useErrReportStore((s) => s.errItems);
+  const getErrReport = useErrReportStore((s) => s.getErrReport);
   const [filters, setFilters] = useState<DeveloperFilters>(defaultFilters);
   const [draftFilters, setDraftFilters] = useState<DeveloperFilters>(defaultFilters);
-  const requestDeveloperReports = useCallback(
-    (nextFilters: DeveloperFilters, signal: AbortSignal) =>
-      fetchDeveloperReports(nextFilters, signal),
-    []
-  );
-  const { items, loading, error } = useReportRequest(
-    filters,
-    requestDeveloperReports,
-    'Failed to load developer reports'
-  );
+
+  // const requestDeveloperReports = useCallback(
+  //   (nextFilters: DeveloperFilters, signal: AbortSignal) =>
+  //     fetchDeveloperReports(nextFilters, signal),
+  //   []
+  // );
+  // const { items, loading, error } = useReportRequest(
+  //   filters,
+  //   requestDeveloperReports,
+  //   'Failed to load developer reports'
+  // );
 
   const handleSearch = () => {
     if (areDeveloperFiltersEqual(filters, draftFilters)) {
@@ -72,27 +78,28 @@ export function DeveloperReportPage() {
 
     startTransition(() => {
       setFilters(draftFilters);
+      getErrReport(draftFilters);
     });
   };
-  const [selectedRow, setSelectedRow] = useState<DeveloperReportItem | null>(null);
+  const [selectedRow, setSelectedRow] = useState<ErrReportItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const handleExport = () => {
-    downloadCsv(
-      'developer-report.csv',
-      ['No.', 'Id', 'Error Pattern', 'Appear Times', 'Root Cause Analysis', 'Suggestion', 'Critical Level'],
-      items.map((item, index) => [
-        index + 1,
-        item.id,
-        item.pattern,
-        item.appearTimes,
-        item.rootCauseAnalysis,
-        item.suggestion,
-        item.level,
-      ])
-    );
-  };
+  // const handleExport = () => {
+  //   downloadCsv(
+  //     'developer-report.csv',
+  //     ['No.', 'Id', 'Error Pattern', 'Appear Times', 'Root Cause Analysis', 'Suggestion', 'Critical Level'],
+  //     errItems.map((item, index) => [
+  //       index + 1,
+  //       item.id,
+  //       item.pattern,
+  //       item.appearTimes,
+  //       item.rootCauseAnalysis,
+  //       item.suggestion,
+  //       item.level,
+  //     ])
+  //   );
+  // };
 
-  const handleOpenChat = (row: DeveloperReportItem) => {
+  const handleOpenChat = (row: ErrReportItem) => {
     setSelectedRow(row);
     setDialogOpen(true);
   };
@@ -101,8 +108,8 @@ export function DeveloperReportPage() {
     setDialogOpen(false);
     setSelectedRow(null);
   };
-   const [chatHistories, setChatHistories] = useState<Map<number, any[]>>(new Map());
-  const saveChatHistory = (rowId: number, messages: any[]) => {
+   const [chatHistories, setChatHistories] = useState<Map<string, any[]>>(new Map());
+  const saveChatHistory = (rowId: string, messages: any[]) => {
     setChatHistories(prev => new Map(prev).set(rowId, messages));
   };
 
@@ -141,12 +148,12 @@ export function DeveloperReportPage() {
           >
             Search
           </Button>
-          <Button variant="outlined" onClick={handleExport} sx={{ minWidth: { md: 140 } }}>
+          {/* <Button variant="outlined" onClick={handleExport} sx={{ minWidth: { md: 140 } }}>
             Export CSV
-          </Button>
+          </Button> */}
         </Stack>
       </Paper>
-      {error ? <Alert severity="error">{error}</Alert> : null}
+      {/* {error ? <Alert severity="error">{error}</Alert> : null} */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -155,25 +162,21 @@ export function DeveloperReportPage() {
               <TableCell>Id</TableCell>
               <TableCell>Error Pattern</TableCell>
               <TableCell>Appear Times</TableCell>
-              <TableCell>Root Cause Analysis</TableCell>
-              <TableCell>Suggestion</TableCell>
               <TableCell>Critical Level</TableCell>
               <TableCell>Action</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {items.map((item, index) => (
+            {errItems.map((item, index) => (
               <TableRow key={item.id} hover>
                 <TableCell>{index + 1}</TableCell>
                 <TableCell>{item.id}</TableCell>
                 <TableCell>{item.pattern}</TableCell>
                 <TableCell>{item.appearTimes}</TableCell>
-                <TableCell>{item.rootCauseAnalysis}</TableCell>
-                <TableCell>{item.suggestion}</TableCell>
                 <TableCell>
                   <Chip
-                    label={item.level}
-                    color={levelColor(item.level)}
+                    label={item.criticalLevel}
+                    color={levelColor(item.criticalLevel)}
                     variant="outlined"
                   />
                 </TableCell>
@@ -187,7 +190,7 @@ export function DeveloperReportPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {!loading && items.length === 0 ? (
+            {/* {!loading && items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7}>No reports matched the current search conditions.</TableCell>
               </TableRow>
@@ -196,7 +199,7 @@ export function DeveloperReportPage() {
               <TableRow>
                 <TableCell colSpan={7}>Loading developer reports...</TableCell>
               </TableRow>
-            ) : null}
+            ) : null} */}
           </TableBody>
         </Table>
       </TableContainer>

@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:9090/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ?? 'http://localhost:8080';
 let authToken: string | null = null;
 
 type FetchOptions = RequestInit & {

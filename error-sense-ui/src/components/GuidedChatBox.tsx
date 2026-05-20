@@ -59,6 +59,8 @@ interface DialogContext {
   userId?: string | number;
   userName?: string;
   userEmail?: string;
+  stackTrace?: string;
+  commitId?: string;
   [key: string]: any;  // 存储用户选择的数据
 }
 
@@ -467,6 +469,8 @@ export default function GuidedChatBox({
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const onMessagesChangeRef = useRef(onMessagesChange);
+  onMessagesChangeRef.current = onMessagesChange;
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -479,10 +483,10 @@ export default function GuidedChatBox({
 
   // 通知父组件消息变化
   useEffect(() => {
-    if (onMessagesChange) {
-      onMessagesChange(messages);
+    if (onMessagesChangeRef.current) {
+      onMessagesChangeRef.current(messages);
     }
-  }, [messages, onMessagesChange]);
+  }, [messages]);
 
   // 处理选项选择
   const handleOptionSelect = async (option: Option) => {
