@@ -1,6 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
-// Generated using typescript-generator version 3.2.1263 on 2026-05-21 21:57:38.
+// Generated using typescript-generator version 3.2.1263 on 2026-05-21 22:44:57.
 
 export interface Project {
     id: number;
@@ -37,6 +37,11 @@ export interface RepositoryFileStructure {
     files: RepositoryFile[];
 }
 
+export interface ChatContext {
+    item: ErrReportItem;
+    history: MessageItem[];
+}
+
 export interface ErrReportDTO {
     errItems: ErrReportItem[];
 }
@@ -44,6 +49,7 @@ export interface ErrReportDTO {
 export interface ErrReportItem {
     appId: string;
     commitId: string;
+    repoName: string;
     branchName: string;
     id: string;
     pattern: string;
@@ -57,8 +63,23 @@ export interface LoginDTO {
     token: string;
 }
 
+export interface MessageItem {
+    id: number;
+    role: string;
+    type: MessageType;
+    content: string;
+    timestamp: string;
+}
+
 export const enum CriticalLevel {
     NoImpact = "NoImpact",
     Low = "Low",
     High = "High",
+}
+
+export const enum MessageType {
+    Instruct = "Instruct",
+    Query = "Query",
+    Input = "Input",
+    Answer = "Answer",
 }

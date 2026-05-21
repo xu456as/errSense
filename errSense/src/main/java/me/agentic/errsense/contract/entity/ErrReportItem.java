@@ -7,6 +7,7 @@ import me.agentic.errsense.contract.enums.CriticalLevel;
 public class ErrReportItem {
     private String appId;
     private String commitId;
+    private String repoName;
     private String branchName;
     private String id;
     private String pattern;

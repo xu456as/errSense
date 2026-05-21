@@ -227,22 +227,9 @@ export function DeveloperReportPage() {
           //   onMessagesChange={(messages) => saveChatHistory(selectedRow.id, messages)}
           // />
           <GuidedChatBox
+            errItemId={selectedRow.id}
             key={selectedRow.id}
-            userId={selectedRow.id}
-            userName={"Tom"}
-            userEmail={"Tom@gmail.com"}
             onMessagesChange={(messages) => saveChatHistory(selectedRow.id, messages)}
-            customActions={{
-              // 自定义动作处理器
-              export_result: async (context, input) => {
-                // 导出结果的逻辑
-                return '导出功能正在开发中...';
-              },
-              export_stats: async (context, input) => {
-                // 导出统计报告
-                return '统计报告已导出到您的下载文件夹';
-              }
-            }}
           />
         )}
       </Dialog>

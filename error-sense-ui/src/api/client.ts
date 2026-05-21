@@ -50,3 +50,11 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
 
   return (await response.json()) as T;
 }
+
+export async function apiPost<T>(path: string, body: any, options: Omit<FetchOptions, 'method' | 'body'> = {}): Promise<T> {
+  return apiFetch<T>(path, {
+    ...options,
+    method: 'POST',
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  });
+}

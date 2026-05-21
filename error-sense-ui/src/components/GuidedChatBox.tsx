@@ -26,6 +26,8 @@ import {
   ArrowBack,
   Home
 } from '@mui/icons-material';
+import { useErrReportStore } from '../stores/ErrReportStore';
+import { MessageItem, MessageType } from '../api/contract';
 
 // ==================== 类型定义 ====================
 
@@ -56,9 +58,6 @@ interface QuestionNode {
 
 // 对话上下文
 interface DialogContext {
-  userId?: string | number;
-  userName?: string;
-  userEmail?: string;
   stackTrace?: string;
   commitId?: string;
   [key: string]: any;  // 存储用户选择的数据
@@ -422,44 +421,87 @@ const QUESTION_TREE: Record<string, QuestionNode> = {
 // ==================== 主要组件 ====================
 
 interface GuidedChatBoxProps {
+  errItemId: string;
   apiEndpoint?: string;
-  userId?: string | number;
-  userName?: string;
-  userEmail?: string;
   onMessagesChange?: (messages: Message[]) => void;
   onError?: (error: Error) => void;
-  customActions?: Record<string, (context: DialogContext, input?: string) => Promise<string>>;
 }
 
-export default function GuidedChatBox({ 
-  userId,
-  userName,
-  userEmail,
+export default function GuidedChatBox({
+  errItemId,
   onMessagesChange,
-  onError,
-  customActions = {}
+  onError
 }: GuidedChatBoxProps) {
   const theme = useTheme();
-  
-  // 状态管理
-  const [messages, setMessages] = useState<Message[]>([
-    {
+
+  const chat = useErrReportStore(state => state.chat);
+  const errItemChatMap = useErrReportStore(state => state.errItemChatMap);
+  const chatHistory = errItemChatMap[errItemId]?.history || [];
+
+  const convertToMessage = (item: MessageItem, isQuestion = true, options?: Option[], questionNode?: QuestionNode): Message => ({
+    id: item.id,
+    role: item.role as 'user' | 'assistant',
+    content: item.content,
+    timestamp: new Date(item.timestamp),
+    isError: false,
+    isQuestion,
+    options: QUESTION_TREE['root'].options,
+    questionNode: QUESTION_TREE['root']
+  });
+
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (chatHistory.length > 0) {
+      return chatHistory.map(item => convertToMessage(item));
+    }
+    return [{
       id: 1,
       role: 'assistant',
-      content: `你好${userName ? '，' + userName : '！'}我是 AI 助手，请问有什么可以帮您？`,
+      content: '您好！我是 AI 助手，请问有什么可以帮您？',
       timestamp: new Date(),
       isError: false,
       isQuestion: true,
       options: QUESTION_TREE['root'].options,
       questionNode: QUESTION_TREE['root']
+    }];
+  });
+
+  useEffect(() => {
+    if (chatHistory.length > 0) {
+      const lastHistoryItem = chatHistory[chatHistory.length - 1];
+      const lastMessage = messages[messages.length - 1];
+
+      if (lastMessage && lastMessage.id === lastHistoryItem.id && lastMessage.role === lastHistoryItem.role) {
+        return;
+      }
+
+      const newMessages = chatHistory.map(item => convertToMessage(item));
+      setMessages(newMessages);
     }
-  ]);
+  }, [chatHistory]);
+
+  useEffect(() => {
+    if (errItemId) {
+      const existingHistory = errItemChatMap[errItemId]?.history || [];
+      if (existingHistory.length > 0) {
+        const newMessages = existingHistory.map(item => convertToMessage(item));
+        setMessages(newMessages);
+      } else {
+        setMessages([{
+          id: 1,
+          role: 'assistant',
+          content: '您好！我是 AI 助手，请问有什么可以帮您？',
+          timestamp: new Date(),
+          isError: false,
+          isQuestion: true,
+          options: QUESTION_TREE['root'].options,
+          questionNode: QUESTION_TREE['root']
+        }]);
+      }
+    }
+  }, [errItemId]);
   
   const [currentNode, setCurrentNode] = useState<QuestionNode>(QUESTION_TREE['root']);
   const [context, setContext] = useState<DialogContext>({
-    userId,
-    userName,
-    userEmail,
     history: []  // 记录用户的选择历史
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -511,104 +553,22 @@ export default function GuidedChatBox({
 
   // 执行选项操作
   const executeOption = async (option: Option, customInput?: string) => {
-    // 添加用户选择消息
-    const userMessageText = customInput 
+    const userMessageText = customInput
       ? `${option.label}: ${customInput}`
       : option.label;
-    
-    const userMessage: Message = {
+
+    const messageItem: MessageItem = {
       id: Date.now(),
       role: 'user',
+      type: MessageType.Input,
       content: userMessageText,
-      timestamp: new Date(),
-      isError: false
+      timestamp: new Date().toISOString()
     };
-    
-    setMessages(prev => [...prev, userMessage]);
+
     setIsLoading(true);
-    
-    // 更新上下文
-    const updatedContext = {
-      ...context,
-      lastAction: option.action,
-      lastInput: customInput || option.label,
-      history: [...(context.history || []), {
-        nodeId: currentNode.id,
-        optionId: option.id,
-        input: customInput,
-        timestamp: new Date()
-      }]
-    };
-    setContext(updatedContext);
-    
+
     try {
-      let response = '';
-      
-      // 处理自定义动作
-      if (customActions[option.action || '']) {
-        response = await customActions[option.action!](updatedContext, customInput);
-      } 
-      // 处理节点内定义的动作
-      else if (currentNode.onAction) {
-        response = await currentNode.onAction(updatedContext, customInput);
-      }
-      // 默认处理
-      else {
-        response = await defaultActionHandler(option, customInput, updatedContext);
-      }
-      
-      // 确定下一个节点
-      let nextNode: QuestionNode | null = null;
-      if (option.nextNodeId && QUESTION_TREE[option.nextNodeId]) {
-        nextNode = QUESTION_TREE[option.nextNodeId];
-      } else if (option.isEnd) {
-        nextNode = null;
-      }
-      
-      // 检查当前节点是否为结束节点
-      if (currentNode.isEnd || (option.isEnd) || (nextNode && nextNode.isEnd)) {
-        const endMessage = currentNode.endMessage || option.endMessage || nextNode?.endMessage || '感谢您的使用！';
-        
-        const assistantMessage: Message = {
-          id: Date.now() + 1,
-          role: 'assistant',
-          content: response + '\n\n' + endMessage,
-          timestamp: new Date(),
-          isError: false
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-      } 
-      else if (nextNode) {
-        // 有下一个问题节点
-        const assistantMessage: Message = {
-          id: Date.now() + 1,
-          role: 'assistant',
-          content: response ? response + '\n\n' + nextNode.text : nextNode.text,
-          timestamp: new Date(),
-          isError: false,
-          isQuestion: true,
-          options: nextNode.options,
-          questionNode: nextNode
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-        setCurrentNode(nextNode);
-      }
-      else {
-        // 对话结束
-        const assistantMessage: Message = {
-          id: Date.now() + 1,
-          role: 'assistant',
-          content: response,
-          timestamp: new Date(),
-          isError: false
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-      }
-      
-      // 重置输入状态
-      setCurrentOption(null);
-      setInputValue('');
-      
+      await chat(errItemId, messageItem);
     } catch (error) {
       console.error('执行操作失败:', error);
       const errorMessage: Message = {
@@ -622,6 +582,8 @@ export default function GuidedChatBox({
       onError?.(error as Error);
     } finally {
       setIsLoading(false);
+      setCurrentOption(null);
+      setInputValue('');
     }
   };
 
@@ -676,14 +638,14 @@ export default function GuidedChatBox({
     setMessages([{
       id: Date.now(),
       role: 'assistant',
-      content: `对话已清空${userName ? '，' + userName : '！'}请问有什么可以帮您？`,
+      content: '对话已清空，请问有什么可以帮您？',
       timestamp: new Date(),
       isQuestion: true,
       options: QUESTION_TREE['root'].options,
       questionNode: QUESTION_TREE['root']
     }]);
     setCurrentNode(QUESTION_TREE['root']);
-    setContext({ userId, userName, userEmail, history: [] });
+    setContext({ history: [] });
     setCurrentOption(null);
     setInputValue('');
     setValidationError('');
@@ -712,11 +674,6 @@ export default function GuidedChatBox({
             <Box>
               <Typography variant="h6" fontWeight="bold">
                 智能助手
-                {userName && (
-                  <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                    (与 {userName} 的对话)
-                  </Typography>
-                )}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 引导式问答 · 请选择对应选项
