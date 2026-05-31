@@ -87,42 +87,42 @@ const QUESTION_TREE: Record<string, QuestionNode> = {
         id: 'view_source',
         label: '📊 查看源码',
         requiresInput: false,
-        nextNodeId: 'root',
+        nextNodeId: 'view_source',
         action: 'query_source'
       },
       {
         id: 'root_cause',
         label: '🔍 根因分析',
         requiresInput: false,
-        nextNodeId: 'root',
+        nextNodeId: 'root_cause',
         action: 'root_cause_analysis'
       },
       {
         id: 'solution',
         label: '💡 解决方向',
         requiresInput: false,
-        nextNodeId: 'root',
+        nextNodeId: 'solution',
         action: 'solution_direction'
       },
       {
         id: 'modify_code',
         label: '✏️ 帮我改代码',
         requiresInput: false,
-        nextNodeId: 'root',
+        nextNodeId: 'modify_code',
         action: 'modify_code'
       },
       {
         id: 'expert_method',
         label: '👨‍🔬 查询专家方法',
         requiresInput: false,
-        nextNodeId: 'root',
+        nextNodeId: 'expert_method',
         action: 'expert_method'
       },
       {
         id: 'enterprise_doc',
         label: '📚 查询企业文档',
         requiresInput: false,
-        nextNodeId: 'root',
+        nextNodeId: 'enterprise_doc',
         action: 'enterprise_doc'
       },
       {
@@ -142,279 +142,89 @@ const QUESTION_TREE: Record<string, QuestionNode> = {
       }
     ]
   },
-  // 根节点
-  'root0': {
-    id: 'root0',
-    text: '您好！我是 AI 助手，请问您需要什么帮助？',
+
+  // 查看源码节点
+  'view_source': {
+    id: 'view_source',
+    text: '📊 正在为您查询源码位置...',
     options: [
       {
-        id: 'query',
-        label: '📊 查询数据',
-        nextNodeId: 'query_type',
-        action: 'query_data'
-      },
-      {
-        id: 'report',
-        label: '📄 生成报告',
-        requiresInput: true,
-        inputPlaceholder: '请输入报告名称（例如：2024年度报告）',
-        inputType: 'text',
-        nextNodeId: 'report_confirm',
-        action: 'generate_report'
-      },
-      {
-        id: 'stats',
-        label: '📈 查看统计',
-        nextNodeId: 'stats_period',
-        action: 'view_stats'
-      },
-      {
-        id: 'support',
-        label: '💬 技术支持',
-        requiresInput: true,
-        inputPlaceholder: '请描述您遇到的问题',
-        inputType: 'text',
-        nextNodeId: 'support_result',
-        action: 'get_support'
-      }
-    ]
-  },
-  
-  // 查询类型节点
-  'query_type': {
-    id: 'query_type',
-    text: '请选择要查询的内容：',
-    options: [
-      {
-        id: 'user',
-        label: '👤 查询用户',
-        requiresInput: true,
-        inputPlaceholder: '请输入用户名、ID或邮箱',
-        inputType: 'text',
-        nextNodeId: 'query_result',
-        action: 'query_user'
-      },
-      {
-        id: 'order',
-        label: '📦 查询订单',
-        requiresInput: true,
-        inputPlaceholder: '请输入订单号',
-        inputType: 'text',
-        nextNodeId: 'query_result',
-        action: 'query_order'
-      },
-      {
-        id: 'product',
-        label: '🛍️ 查询产品',
-        requiresInput: true,
-        inputPlaceholder: '请输入产品名称或SKU',
-        inputType: 'text',
-        nextNodeId: 'query_result',
-        action: 'query_product'
-      },
-      {
-        id: 'back',
-        label: '🔙 返回上级',
+        id: 'go_back',
+        label: '🔙 返回',
         nextNodeId: 'root',
         action: 'go_back'
       }
     ]
   },
-  
-  // 统计周期节点
-  'stats_period': {
-    id: 'stats_period',
-    text: '请选择统计周期：',
+
+  // 根因分析节点
+  'root_cause': {
+    id: 'root_cause',
+    text: '🔍 正在分析错误根因...',
     options: [
       {
-        id: 'today',
-        label: '今日',
-        nextNodeId: 'stats_result',
-        action: 'stats_today'
-      },
-      {
-        id: 'week',
-        label: '本周',
-        nextNodeId: 'stats_result',
-        action: 'stats_week'
-      },
-      {
-        id: 'month',
-        label: '本月',
-        nextNodeId: 'stats_result',
-        action: 'stats_month'
-      },
-      {
-        id: 'custom',
-        label: '自定义',
-        requiresInput: true,
-        inputPlaceholder: '请输入日期范围（格式：2024-01-01 至 2024-01-31）',
-        inputType: 'text',
-        nextNodeId: 'stats_result',
-        action: 'stats_custom',
-        validation: (value) => {
-          // 简单的日期范围验证
-          const regex = /\d{4}-\d{2}-\d{2}\s*至\s*\d{4}-\d{2}-\d{2}/;
-          return regex.test(value);
-        },
-        validationMessage: '日期格式不正确，请使用：2024-01-01 至 2024-01-31'
-      },
-      {
-        id: 'back',
-        label: '🔙 返回上级',
-        nextNodeId: 'root'
+        id: 'go_back',
+        label: '🔙 返回',
+        nextNodeId: 'root',
+        action: 'go_back'
       }
     ]
   },
-  
-  // 查询结果节点
-  'query_result': {
-    id: 'query_result',
-    text: '正在为您查询，请稍候...',
+
+  // 解决方向节点
+  'solution': {
+    id: 'solution',
+    text: '💡 正在为您提供解决方向...',
     options: [
       {
-        id: 'new_query',
-        label: '🔄 继续查询',
-        nextNodeId: 'query_type'
-      },
-      {
-        id: 'home',
-        label: '🏠 返回首页',
-        nextNodeId: 'root'
-      },
-      {
-        id: 'export',
-        label: '📎 导出结果',
-        action: 'export_result'
+        id: 'go_back',
+        label: '🔙 返回',
+        nextNodeId: 'root',
+        action: 'go_back'
       }
-    ],
-    onAction: async (context, input) => {
-      // 这里调用实际的API查询
-      const queryType = context.lastAction;
-      const queryValue = context.lastInput;
-      
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      if (queryType === 'query_user') {
-        return `找到用户 "${queryValue}" 的相关信息：\n• 用户名：张三\n• 邮箱：zhangsan@example.com\n• 角色：管理员\n• 注册时间：2023-01-15`;
-      } else if (queryType === 'query_order') {
-        return `订单 ${queryValue} 详情：\n• 状态：已完成\n• 金额：¥299.00\n• 下单时间：2024-01-20\n• 物流单号：SF1234567890`;
-      } else {
-        return `查询结果：已找到与 "${queryValue}" 相关的信息，共 3 条记录。`;
-      }
-    }
+    ]
   },
-  
-  // 统计结果节点
-  'stats_result': {
-    id: 'stats_result',
-    text: '正在生成统计报告...',
+
+  // 帮我改代码节点
+  'modify_code': {
+    id: 'modify_code',
+    text: '✏️ 正在为您生成代码修改方案...',
     options: [
       {
-        id: 'again',
-        label: '🔄 重新统计',
-        nextNodeId: 'stats_period'
-      },
-      {
-        id: 'export',
-        label: '📊 导出报告',
-        action: 'export_stats'
-      },
-      {
-        id: 'home',
-        label: '🏠 返回首页',
-        nextNodeId: 'root'
+        id: 'go_back',
+        label: '🔙 返回',
+        nextNodeId: 'root',
+        action: 'go_back'
       }
-    ],
-    onAction: async (context, input) => {
-      const period = context.lastAction;
-      const customRange = context.lastInput;
-      
-      await new Promise(resolve => setTimeout(resolve, 1200));
-      
-      if (period === 'stats_today') {
-        return `今日统计（${new Date().toLocaleDateString()}）：\n• 访问量：1,234\n• 订单数：89\n• 成交额：¥12,345\n• 转化率：7.2%`;
-      } else if (period === 'stats_week') {
-        return `本周统计：\n• 总访问量：8,765\n• 总订单：623\n• 总成交额：¥87,654\n• 平均转化率：7.1%`;
-      } else {
-        return `自定义统计报告已生成：\n${customRange || '指定时间段'}\n数据正在处理中，请稍后查看完整报告。`;
-      }
-    }
+    ]
   },
-  
-  // 报告确认节点
-  'report_confirm': {
-    id: 'report_confirm',
-    text: '报告正在生成中...',
+
+  // 查询专家方法节点
+  'expert_method': {
+    id: 'expert_method',
+    text: '👨‍🔬 正在为您查询专家方法...',
     options: [
       {
-        id: 'download',
-        label: '📥 下载报告',
-        action: 'download_report'
-      },
-      {
-        id: 'new',
-        label: '🔄 新建报告',
-        nextNodeId: 'root'
-      },
-      {
-        id: 'email',
-        label: '📧 发送到邮箱',
-        requiresInput: true,
-        inputPlaceholder: '请输入邮箱地址',
-        inputType: 'email',
-        action: 'email_report',
-        validation: (value) => {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          return emailRegex.test(value);
-        },
-        validationMessage: '请输入有效的邮箱地址'
+        id: 'go_back',
+        label: '🔙 返回',
+        nextNodeId: 'root',
+        action: 'go_back'
       }
-    ],
-    onAction: async (context, input) => {
-      const reportName = context.lastInput;
-      const action = context.lastAction;
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (action === 'download_report') {
-        return `报告 "${reportName}" 已生成，下载链接：/reports/${Date.now()}.pdf`;
-      } else if (action === 'email_report') {
-        return `报告已发送到 ${input}，请查收邮件。`;
-      }
-      return `报告 "${reportName}" 已生成。`;
-    }
+    ]
   },
-  
-  // 支持结果节点
-  'support_result': {
-    id: 'support_result',
-    text: '感谢您的反馈，我们会尽快处理！',
+
+  // 查询企业文档节点
+  'enterprise_doc': {
+    id: 'enterprise_doc',
+    text: '📚 正在为您查询企业文档...',
     options: [
       {
-        id: 'ticket',
-        label: '🎫 查看工单',
-        action: 'view_ticket'
-      },
-      {
-        id: 'continue',
-        label: '💬 继续咨询',
-        nextNodeId: 'root'
-      },
-      {
-        id: 'end',
-        label: '✅ 结束对话',
-        isEnd: true
+        id: 'go_back',
+        label: '🔙 返回',
+        nextNodeId: 'root',
+        action: 'go_back'
       }
-    ],
-    isEnd: false,
-    endMessage: '感谢使用，祝您生活愉快！',
-    onAction: async (context, input) => {
-      const issue = context.lastInput;
-      const ticketId = 'TK' + Date.now();
-      return `技术支持工单已创建！\n工单号：${ticketId}\n问题描述：${issue}\n我们会尽快在24小时内回复您。`;
-    }
+    ]
   }
 };
 
@@ -451,7 +261,7 @@ export default function GuidedChatBox({
 
   const [messages, setMessages] = useState<Message[]>(() => {
     if (chatHistory.length > 0) {
-      return chatHistory.map(item => convertToMessage(item));
+      return chatHistory.map(item => convertToMessage(item, true));
     }
     return [{
       id: 1,
@@ -535,20 +345,24 @@ export default function GuidedChatBox({
     setValidationError('');
     
     // 如果是返回操作
-    if (option.action === 'go_back' && option.nextNodeId) {
+    if (option.action === 'GoBack' && option.nextNodeId) {
       navigateToNode(option.nextNodeId, option);
       return;
     }
+    if (currentOption != option && option.action != 'GoBack') {
+      await executeOption(option);
+      console.log("todo: hit one api call");
+    } 
+    setCurrentOption(option);
+    // // 如果需要输入
+    // if (option.requiresInput) {
+    //   setCurrentOption(option);
+    //   setTimeout(() => inputRef.current?.focus(), 100);
+    //   return;
+    // }
     
-    // 如果需要输入
-    if (option.requiresInput) {
-      setCurrentOption(option);
-      setTimeout(() => inputRef.current?.focus(), 100);
-      return;
-    }
-    
-    // 直接执行操作
-    await executeOption(option);
+    // // 直接执行操作
+    // await executeOption(option);
   };
 
   // 执行选项操作
@@ -582,7 +396,7 @@ export default function GuidedChatBox({
       onError?.(error as Error);
     } finally {
       setIsLoading(false);
-      setCurrentOption(null);
+      // setCurrentOption(null);
       setInputValue('');
     }
   };
@@ -699,6 +513,7 @@ export default function GuidedChatBox({
             message={message}
             onCopy={handleCopy}
             onOptionSelect={handleOptionSelect}
+            currentOption={currentOption}
           />
         ))}
         
@@ -776,11 +591,13 @@ export default function GuidedChatBox({
 const MessageBubble = ({ 
   message, 
   onCopy, 
-  onOptionSelect 
+  onOptionSelect,
+  currentOption
 }: { 
   message: Message; 
   onCopy: (content: string) => void;
   onOptionSelect: (option: Option) => void;
+  currentOption: Option | null;
 }) => {
   const theme = useTheme();
   const isUser = message.role === 'user';
@@ -794,6 +611,13 @@ const MessageBubble = ({
         </Avatar>
         
         <Box sx={{ flex: 1 }}>
+          {/* CurrentOption Header */}
+          {!isUser && currentOption && currentOption.id !== 'root' && (
+            <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
+              📌 {currentOption.label}
+            </Typography>
+          )}
+          
           <Paper elevation={0} sx={{ p: 2, bgcolor: isUser ? alpha(theme.palette.primary.main, 0.1) : '#ffffff', borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px', border: `1px solid ${theme.palette.divider}` }}>
             <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {message.content}

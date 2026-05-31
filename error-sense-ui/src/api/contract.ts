@@ -1,6 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
-// Generated using typescript-generator version 3.2.1263 on 2026-05-21 22:44:57.
+// Generated using typescript-generator version 3.2.1263 on 2026-05-28 01:41:59.
 
 export interface Project {
     id: number;
@@ -61,6 +61,7 @@ export interface ErrReportItem {
 export interface LoginDTO {
     auth: boolean;
     token: string;
+    expiredIn: number;
 }
 
 export interface MessageItem {

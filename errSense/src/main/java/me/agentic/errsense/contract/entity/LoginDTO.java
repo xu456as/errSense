@@ -6,4 +6,5 @@ import lombok.Data;
 public class LoginDTO {
     private boolean auth;
     private String token;
+    private Long expiredIn;
 }
