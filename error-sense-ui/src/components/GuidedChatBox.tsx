@@ -309,7 +309,7 @@ export default function GuidedChatBox({
       }
     }
   }, [errItemId]);
-  
+
   const [currentNode, setCurrentNode] = useState<QuestionNode>(QUESTION_TREE['root']);
   const [context, setContext] = useState<DialogContext>({
     history: []  // 记录用户的选择历史
@@ -318,7 +318,7 @@ export default function GuidedChatBox({
   const [inputValue, setInputValue] = useState<string>('');
   const [currentOption, setCurrentOption] = useState<Option | null>(null);
   const [validationError, setValidationError] = useState<string>('');
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const onMessagesChangeRef = useRef(onMessagesChange);
@@ -343,7 +343,7 @@ export default function GuidedChatBox({
   // 处理选项选择
   const handleOptionSelect = async (option: Option) => {
     setValidationError('');
-    
+
     // 如果是返回操作
     if (option.action === 'GoBack' && option.nextNodeId) {
       navigateToNode(option.nextNodeId, option);
@@ -352,7 +352,7 @@ export default function GuidedChatBox({
     if (currentOption != option && option.action != 'GoBack') {
       await executeOption(option);
       console.log("todo: hit one api call");
-    } 
+    }
     setCurrentOption(option);
     // // 如果需要输入
     // if (option.requiresInput) {
@@ -360,7 +360,7 @@ export default function GuidedChatBox({
     //   setTimeout(() => inputRef.current?.focus(), 100);
     //   return;
     // }
-    
+
     // // 直接执行操作
     // await executeOption(option);
   };
@@ -432,13 +432,13 @@ export default function GuidedChatBox({
   // 提交自定义输入
   const handleSubmitInput = async () => {
     if (!currentOption || !inputValue.trim() || isLoading) return;
-    
+
     // 验证输入
     if (currentOption.validation && !currentOption.validation(inputValue)) {
       setValidationError(currentOption.validationMessage || '输入无效，请重试');
       return;
     }
-    
+
     await executeOption(currentOption, inputValue.trim());
   };
 
@@ -516,7 +516,7 @@ export default function GuidedChatBox({
             currentOption={currentOption}
           />
         ))}
-        
+
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
             <Paper elevation={0} sx={{ p: 2, bgcolor: '#f0f0f0', borderRadius: '18px', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -525,7 +525,7 @@ export default function GuidedChatBox({
             </Paper>
           </Box>
         )}
-        
+
         <div ref={messagesEndRef} />
       </Box>
 
@@ -545,7 +545,7 @@ export default function GuidedChatBox({
                   setValidationError('');
                 }}
                 onKeyDown={handleKeyPress}
-                disabled={isLoading}  
+                disabled={isLoading}
                 error={!!validationError}
                 helperText={validationError}
                 variant="outlined"
@@ -555,9 +555,9 @@ export default function GuidedChatBox({
                 color="primary"
                 onClick={handleSubmitInput}
                 disabled={!inputValue.trim() || isLoading}
-                sx={{ 
-                  bgcolor: theme.palette.primary.main, 
-                  color: 'white', 
+                sx={{
+                  bgcolor: theme.palette.primary.main,
+                  color: 'white',
                   '&:hover': { bgcolor: theme.palette.primary.dark },
                   '&.Mui-disabled': { bgcolor: theme.palette.grey[300] }
                 }}
@@ -565,8 +565,8 @@ export default function GuidedChatBox({
                 <Send />
               </IconButton>
             </Stack>
-            <Button 
-              size="small" 
+            <Button
+              size="small"
               onClick={() => setCurrentOption(null)}
               disabled={isLoading}
               sx={{ alignSelf: 'flex-start' }}
@@ -588,13 +588,13 @@ export default function GuidedChatBox({
 
 // ==================== 消息气泡组件 ====================
 
-const MessageBubble = ({ 
-  message, 
-  onCopy, 
+const MessageBubble = ({
+  message,
+  onCopy,
   onOptionSelect,
   currentOption
-}: { 
-  message: Message; 
+}: {
+  message: Message;
   onCopy: (content: string) => void;
   onOptionSelect: (option: Option) => void;
   currentOption: Option | null;
@@ -602,14 +602,14 @@ const MessageBubble = ({
   const theme = useTheme();
   const isUser = message.role === 'user';
   const isQuestion = message.isQuestion;
-  
+
   return (
     <Box sx={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', mb: 3, animation: 'fadeIn 0.3s ease-in' }}>
       <Box sx={{ display: 'flex', gap: 2, maxWidth: '80%', flexDirection: isUser ? 'row-reverse' : 'row' }}>
         <Avatar sx={{ bgcolor: isUser ? theme.palette.primary.main : theme.palette.secondary.main, width: 36, height: 36 }}>
           {isUser ? <Person /> : <SmartToy />}
         </Avatar>
-        
+
         <Box sx={{ flex: 1 }}>
           {/* CurrentOption Header */}
           {!isUser && currentOption && currentOption.id !== 'root' && (
@@ -617,12 +617,48 @@ const MessageBubble = ({
               📌 {currentOption.label}
             </Typography>
           )}
-          
+
           <Paper elevation={0} sx={{ p: 2, bgcolor: isUser ? alpha(theme.palette.primary.main, 0.1) : '#ffffff', borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px', border: `1px solid ${theme.palette.divider}` }}>
             <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {message.content}
             </Typography>
-            
+            {/* npm install react-markdown remark-gfm rehype-highlight */}
+            {/* <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                  code({ node, inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    return !inline && match ? (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    ) : (
+                      <code className="inline-code" {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                  pre({ children }) {
+                    return (
+                      <pre style={{
+                        backgroundColor: '#f6f8fa',
+                        padding: '12px',
+                        borderRadius: '6px',
+                        overflowX: 'auto',
+                        margin: '8px 0'
+                      }}>
+                        {children}
+                      </pre>
+                    );
+                  }
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </Typography> */}
+
             {/* 选项按钮 */}
             {!isUser && isQuestion && message.options && message.options.length > 0 && (
               <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -639,7 +675,7 @@ const MessageBubble = ({
                 ))}
               </Stack>
             )}
-            
+
             {/* 操作按钮 */}
             {!isUser && !message.isError && !isQuestion && (
               <Stack direction="row" spacing={1} sx={{ mt: 1.5, pt: 1, borderTop: `1px solid ${theme.palette.divider}`, opacity: 0.6, '&:hover': { opacity: 1 } }}>
@@ -649,7 +685,7 @@ const MessageBubble = ({
               </Stack>
             )}
           </Paper>
-          
+
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, textAlign: isUser ? 'right' : 'left' }}>
             {message.timestamp.toLocaleTimeString()}
           </Typography>
