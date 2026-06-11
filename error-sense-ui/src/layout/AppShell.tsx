@@ -15,6 +15,7 @@ import {
 import BugReportOutlinedIcon from '@mui/icons-material/BugReportOutlined';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
+import NetworkCheckOutlinedIcon from '@mui/icons-material/NetworkCheckOutlined';
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -24,6 +25,7 @@ const drawerWidth = 280;
 const navItems = [
   { label: 'Developer Report', path: '/developer-report', icon: <BugReportOutlinedIcon /> },
   { label: 'Reviewer Report', path: '/reviewer-report', icon: <FactCheckOutlinedIcon /> },
+  { label: 'Agent Graph Designer', path: '/agent-graph-designer', icon: <NetworkCheckOutlinedIcon /> },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

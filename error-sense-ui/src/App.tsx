@@ -12,6 +12,9 @@ const DeveloperReportPage = lazy(() =>
 const ReviewerReportPage = lazy(() =>
   import('./pages/ReviewerReportPage').then((module) => ({ default: module.ReviewerReportPage }))
 );
+const AgentGraphDesigner = lazy(() =>
+  import('./pages/AgentGraphDesigner').then((module) => ({ default: module.AgentGraphDesigner }))
+);
 
 function ProtectedRoutes() {
   const { isAuthenticated } = useAppContext();
@@ -26,6 +29,7 @@ function ProtectedRoutes() {
         <Route index element={<Navigate to="/developer-report" replace />} />
         <Route path="/developer-report" element={<DeveloperReportPage />} />
         <Route path="/reviewer-report" element={<ReviewerReportPage />} />
+        <Route path="/agent-graph-designer" element={<AgentGraphDesigner />} />
       </Routes>
     </AppShell>
   );

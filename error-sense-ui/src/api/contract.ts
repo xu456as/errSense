@@ -1,6 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
-// Generated using typescript-generator version 3.2.1263 on 2026-05-28 01:41:59.
+// Generated using typescript-generator version 3.2.1263 on 2026-06-10 23:14:53.
 
 export interface Project {
     id: number;
@@ -35,6 +35,23 @@ export interface RepositoryFile {
 export interface RepositoryFileStructure {
     repository: Repository;
     files: RepositoryFile[];
+}
+
+export interface AgentNodeDTO {
+    id: number;
+    graphName: string;
+    nodeName: string;
+    timestamp: number;
+    instruction: string;
+    modelName: string;
+    agentInitParams: string;
+    tools: string;
+    nextHops: string;
+    nodeFlag: number;
+    status: string;
+    description: string;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 export interface ChatContext {
