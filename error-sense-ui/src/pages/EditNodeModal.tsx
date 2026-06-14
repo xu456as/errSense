@@ -34,8 +34,8 @@ interface GraphNode {
   status?: string;
   description?: string;
   timestamp?: number;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
 
 interface Props {
@@ -172,7 +172,7 @@ export default function EditNodeModal({ open, node, graphName, connectionTargets
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: 640,
+          width: '66.67%',
           maxHeight: '90vh',
           bgcolor: 'background.paper',
           borderRadius: 2,

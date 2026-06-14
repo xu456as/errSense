@@ -1,5 +1,5 @@
 import EditNodeModal from './EditNodeModal';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
@@ -26,7 +26,10 @@ import {
   Delete,
   Add,
   ChevronRight,
+  ChevronLeft,
 } from '@mui/icons-material';
+import { useErrReportStore } from '../stores/AgentGraphStore';
+import { AgentGraphDTO, AgentNodeDTO } from '../api/contract';
 
 interface GraphNode {
   id: string;
@@ -46,59 +49,106 @@ interface GraphNode {
   status?: string;
   description?: string;
   timestamp?: number;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
 
-interface GraphData {
-  id: string;
-  name: string;
-  nodes: GraphNode[];
+interface NodeMeta {
+  type: GraphNode['type'];
+  x: number;
+  y: number;
 }
-
-const mockGraphs: GraphData[] = [
-  {
-    id: 'graph-1',
-    name: 'graph-1',
-    nodes: [
-      { id: 'node-1', type: 'circle', label: 'Start', x: 200, y: 40, nextHops: ['node-2'] },
-      { id: 'node-2', type: 'square', label: 'Process', x: 180, y: 120, nextHops: ['node-3'] },
-      { id: 'node-3', type: 'diamond', label: 'Decision', x: 180, y: 220, nextHops: ['node-4', 'node-5'] },
-      { id: 'node-4', type: 'square', label: 'Branch A', x: 80, y: 320, nextHops: ['node-6'] },
-      { id: 'node-5', type: 'square', label: 'Branch B', x: 280, y: 320, nextHops: ['node-6'] },
-      { id: 'node-6', type: 'double-circle', label: 'End', x: 180, y: 420, nextHops: [] },
-    ],
-  },
-  {
-    id: 'graph-2',
-    name: 'graph-2',
-    nodes: [],
-  },
-  {
-    id: 'graph-3',
-    name: 'graph-3',
-    nodes: [],
-  },
-];
-
-const functionList = [
-  { id: 'view-source', label: 'ViewSource' },
-  { id: 'confluence', label: 'Confluence' },
-  { id: 'root-cause', label: 'RootCause Analysis' },
-  { id: 'expert', label: 'Expert Knowledge' },
-  { id: 'provide-knowledge', label: 'Provide my Knowledge' },
-];
 
 const componentElements = [
-  { type: 'circle', label: '起始节点', icon: <Circle sx={{ width: 32, height: 32 }} /> },
-  { type: 'square', label: '处理节点', icon: <Square sx={{ width: 32, height: 32 }} /> },
-  { type: 'diamond', label: '决策节点', icon: <Diamond sx={{ width: 32, height: 32 }} /> },
-  { type: 'double-circle', label: '结束节点', icon: <Refresh sx={{ width: 32, height: 32 }} /> },
+  { type: 'circle', label: 'Start', icon: <Circle sx={{ width: 32, height: 32 }} /> },
+  { type: 'square', label: 'Process', icon: <Square sx={{ width: 32, height: 32 }} /> },
+  { type: 'diamond', label: 'Decision', icon: <Diamond sx={{ width: 32, height: 32 }} /> },
+  { type: 'double-circle', label: 'End', icon: <Refresh sx={{ width: 32, height: 32 }} /> },
 ];
 
+function parseNextHops(nextHops?: string): string[] {
+  if (!nextHops) return [];
+  return nextHops.replace(/[\[\]"]/g, '').split(',').map(h => h.trim()).filter(Boolean);
+}
+
+function layoutNodes(nodes: AgentNodeDTO[]): Record<string, NodeMeta> {
+  const meta: Record<string, NodeMeta> = {};
+  const VERTICAL_GAP = 200;
+  const START_Y = 60;
+  const START_X = 100;
+  nodes.forEach((node, index) => {
+    meta[node.nodeName] = {
+      x: START_X,
+      y: START_Y + index * VERTICAL_GAP,
+      type: 'square',
+    };
+  });
+  return meta;
+}
+
 export function AgentGraphDesigner() {
-  const [selectedGraph, setSelectedGraph] = useState<GraphData>(mockGraphs[0]);
-  const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
+  // ── Store state ──
+  const graphList = useErrReportStore(state => state.graphList);
+  const graphNodes = useErrReportStore(state => state.graphNodes);
+  const currentGraph = useErrReportStore(state => state.currentGraph);
+  const chatCaseGraphs = useErrReportStore(state => state.chatCaseGraphs);
+  const listGraphs = useErrReportStore(state => state.listGraphs);
+  const listGraphNodes = useErrReportStore(state => state.listGraphNodes);
+  const listChatChaseGraphs = useErrReportStore(state => state.listChatChaseGraphs);
+  const addGraphNode = useErrReportStore(state => state.addGraphNode);
+  const deleteGraphNode = useErrReportStore(state => state.deleteGraphNode);
+  const updateGraphNode = useErrReportStore(state => state.updateGraphNode);
+  const addEdgeToGraphNode = useErrReportStore(state => state.addEdgeToGraphNode);
+  const deleteEdgeInGraphNode = useErrReportStore(state => state.deleteEdgeInGraphNode);
+  const creteNewGraph = useErrReportStore(state => state.creteNewGraph);
+
+  // ── Local canvas state (positions & types not stored in backend) ──
+  const [nodeMeta, setNodeMeta] = useState<Record<string, NodeMeta>>({});
+  const lastGraphRef = useRef<string | null>(null);
+
+  // Initialize positions when graph changes (new nodes get default layout)
+  useEffect(() => {
+    if (currentGraph && currentGraph !== lastGraphRef.current) {
+      lastGraphRef.current = currentGraph;
+      setNodeMeta(layoutNodes(graphNodes));
+    }
+  }, [currentGraph, graphNodes]);
+
+  // Load graphs on mount
+  useEffect(() => {
+    listGraphs();
+    listChatChaseGraphs();
+  }, [listGraphs, listChatChaseGraphs]);
+
+  // ── Derive canvas nodes from store graphNodes + local nodeMeta ──
+  const canvasNodes: GraphNode[] = React.useMemo(() => {
+    return graphNodes.map(gn => {
+      const meta = nodeMeta[gn.nodeName] || { x: 100, y: 100, type: 'square' as const };
+      return {
+        id: gn.nodeName,
+        type: meta.type,
+        label: gn.nodeName,
+        x: meta.x,
+        y: meta.y,
+        nextHops: parseNextHops(gn.nextHops),
+        backendId: gn.id,
+        graphName: gn.graphName,
+        instruction: gn.instruction,
+        modelName: gn.modelName,
+        agentInitParams: gn.agentInitParams,
+        tools: gn.tools,
+        nodeFlag: gn.nodeFlag,
+        status: gn.status,
+        description: gn.description,
+        timestamp: gn.timestamp,
+        createdAt: gn.createdAt,
+        updatedAt: gn.updatedAt,
+      };
+    });
+  }, [graphNodes, nodeMeta]);
+
+  // ── Local UI state ──
+  const [selectedChatCase, setSelectedChatCase] = useState<number | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [draggedElement, setDraggedElement] = useState<string | null>(null);
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
@@ -108,22 +158,25 @@ export function AgentGraphDesigner() {
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'error' | 'warning' | 'info' | 'success' } | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<{ source: string; target: string } | null>(null);
   const [editNodeModalOpen, setEditNodeModalOpen] = useState(false);
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [pendingNewNode, setPendingNewNode] = useState<{
     type: GraphNode['type'];
     x: number;
     y: number;
   } | null>(null);
   const [newNodeName, setNewNodeName] = useState('');
+  const [newGraphDialogOpen, setNewGraphDialogOpen] = useState(false);
+  const [newGraphName, setNewGraphName] = useState('');
 
-  // Derive the full node data for the modal from selectedGraph
+  // Derive the full node data for the modal from canvasNodes
   const editingNodeData = React.useMemo(() => {
     if (!selectedNode) return null;
-    return selectedGraph.nodes.find((n) => n.id === selectedNode) ?? null;
-  }, [selectedNode, selectedGraph.nodes]);
+    return canvasNodes.find((n) => n.id === selectedNode) ?? null;
+  }, [selectedNode, canvasNodes]);
 
   // Compute SVG content extent so drawn lines are visible after scrolling
   const svgBounds = React.useMemo(() => {
-    const nodes = selectedGraph.nodes;
+    const nodes = canvasNodes;
     if (nodes.length === 0) return { w: 800, h: 600 };
     let maxX = 0, maxY = 0;
     nodes.forEach((node) => {
@@ -133,16 +186,16 @@ export function AgentGraphDesigner() {
       maxY = Math.max(maxY, node.y + h);
     });
     return { w: maxX + 300, h: maxY + 300 };
-  }, [selectedGraph.nodes]);
+  }, [canvasNodes]);
 
-  const handleGraphSelect = useCallback((graph: GraphData) => {
-    setSelectedGraph(graph);
+  const handleGraphSelect = useCallback((graphName: string) => {
+    listGraphNodes(graphName);
     setSelectedNode(null);
-  }, []);
+  }, [listGraphNodes]);
 
-  const handleFunctionSelect = useCallback((functionId: string) => {
-    setSelectedFunction(selectedFunction === functionId ? null : functionId);
-  }, [selectedFunction]);
+  const handleChatCaseSelect = useCallback((chatCaseId: number) => {
+    setSelectedChatCase(prev => prev === chatCaseId ? null : chatCaseId);
+  }, []);
 
   const handleComponentDragStart = useCallback((type: string) => {
     setDraggedElement(type);
@@ -162,7 +215,7 @@ export function AgentGraphDesigner() {
     const canvasRect = canvasDiv.getBoundingClientRect();
     const scrollLeft = canvasDiv.scrollLeft || 0;
     const scrollTop = canvasDiv.scrollTop || 0;
-    const node = selectedGraph.nodes.find((n) => n.id === nodeId);
+    const node = canvasNodes.find((n) => n.id === nodeId);
     if (node) {
       setDraggingNode(nodeId);
       setDragOffset({
@@ -172,7 +225,7 @@ export function AgentGraphDesigner() {
       setSelectedConnection(null);
       setSelectedNode(nodeId);
     }
-  }, [selectedGraph.nodes]);
+  }, [canvasNodes]);
 
   const handleConnectionStart = useCallback((e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation();
@@ -184,7 +237,7 @@ export function AgentGraphDesigner() {
     const canvasRect = canvasDiv.getBoundingClientRect();
     const scrollLeft = canvasDiv.scrollLeft || 0;
     const scrollTop = canvasDiv.scrollTop || 0;
-    const node = selectedGraph.nodes.find((n) => n.id === nodeId);
+    const node = canvasNodes.find((n) => n.id === nodeId);
     if (!node) return;
 
     const center = getNodeEdgePort(node, 'bottom');
@@ -193,7 +246,7 @@ export function AgentGraphDesigner() {
       x: e.clientX - canvasRect.left + scrollLeft,
       y: e.clientY - canvasRect.top + scrollTop,
     });
-  }, [selectedGraph.nodes]);
+  }, [canvasNodes]);
 
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -204,13 +257,13 @@ export function AgentGraphDesigner() {
       const newX = e.clientX - rect.left + scrollLeft - dragOffset.x;
       const newY = e.clientY - rect.top + scrollTop - dragOffset.y;
 
-      setSelectedGraph((prev) => ({
+      setNodeMeta(prev => ({
         ...prev,
-        nodes: prev.nodes.map((node) =>
-          node.id === draggingNode
-            ? { ...node, x: Math.max(0, newX), y: Math.max(0, newY) }
-            : node
-        ),
+        [draggingNode]: {
+          ...(prev[draggingNode] || { type: 'square' }),
+          x: Math.max(0, newX),
+          y: Math.max(0, newY),
+        },
       }));
     } else if (connectionSource) {
       setConnectionTargetPos({
@@ -255,25 +308,20 @@ export function AgentGraphDesigner() {
       const mouseY = e.clientY - rect.top + scrollTop;
 
       // Check if mouse is over any target node
-      for (const node of selectedGraph.nodes) {
+      for (const node of canvasNodes) {
         if (node.id === connectionSource.nodeId) continue;
 
         const w = getNodeWidth(node);
         const h = node.type === 'square' ? 60 : 80;
         if (mouseX >= node.x && mouseX <= node.x + w && mouseY >= node.y && mouseY <= node.y + h) {
           // Cycle detection: check if adding this edge would create a cycle
-          if (hasCycle(selectedGraph.nodes, connectionSource.nodeId, node.id)) {
+          if (hasCycle(canvasNodes, connectionSource.nodeId, node.id)) {
             setSnackbar({ message: 'Cannot create connection: this would create a cycle in the graph', severity: 'error' });
-          } else {
-            // Create connection: add to nextHops if not already present
-            setSelectedGraph((prev) => ({
-              ...prev,
-              nodes: prev.nodes.map((n) =>
-                n.id === connectionSource.nodeId
-                  ? { ...n, nextHops: n.nextHops.includes(node.id) ? n.nextHops : [...n.nextHops, node.id] }
-                  : n
-            ),
-            }));
+          } else if (currentGraph) {
+            // Create connection via store action
+            addEdgeToGraphNode(currentGraph, connectionSource.nodeId, node.id);
+            // Optimistically update local state
+            setNodeMeta(prev => prev);
           }
           break;
         }
@@ -282,7 +330,7 @@ export function AgentGraphDesigner() {
       setConnectionSource(null);
     }
     setDraggingNode(null);
-  }, [connectionSource, selectedGraph.nodes]);
+  }, [connectionSource, canvasNodes, currentGraph, addEdgeToGraphNode]);
 
   const handleCanvasDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -303,43 +351,100 @@ export function AgentGraphDesigner() {
     }
   }, [draggedElement]);
 
-  const handleNewNodeConfirm = useCallback(() => {
-    if (!pendingNewNode) return;
+  const handleNewNodeConfirm = useCallback(async () => {
+    if (!pendingNewNode || !currentGraph) return;
     const name = newNodeName.trim() || `New ${pendingNewNode.type}`;
-    const newNode: GraphNode = {
-      id: `node-${Date.now()}`,
-      type: pendingNewNode.type,
-      label: name,
-      x: pendingNewNode.x,
-      y: pendingNewNode.y,
-      nextHops: [],
-    };
-    setSelectedGraph((prev) => ({
-      ...prev,
-      nodes: [...prev.nodes, newNode],
-    }));
-    setPendingNewNode(null);
-    setNewNodeName('');
-  }, [pendingNewNode, newNodeName]);
+
+    try {
+      const newNode: AgentNodeDTO = {
+        id: 0,
+        graphName: currentGraph,
+        nodeName: name,
+        timestamp: Date.now(),
+        instruction: '',
+        modelName: '',
+        agentInitParams: '',
+        tools: '',
+        nextHops: '',
+        nodeFlag: 0,
+        status: 'ACTIVE',
+        description: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const saved = await addGraphNode(newNode);
+      // Store canvas position and type locally
+      setNodeMeta(prev => ({
+        ...prev,
+        [saved.nodeName]: {
+          type: pendingNewNode.type,
+          x: pendingNewNode.x,
+          y: pendingNewNode.y,
+        },
+      }));
+      setPendingNewNode(null);
+      setNewNodeName('');
+    } catch (err) {
+      setSnackbar({ message: 'Failed to create node', severity: 'error' });
+    }
+  }, [pendingNewNode, currentGraph, newNodeName, addGraphNode]);
 
   const handleNewNodeCancel = useCallback(() => {
     setPendingNewNode(null);
     setNewNodeName('');
   }, []);
 
+  // ── New Graph dialog ──
+  const handleNewGraphOpen = useCallback(() => {
+    setNewGraphName('');
+    setNewGraphDialogOpen(true);
+  }, []);
+
+  const handleNewGraphConfirm = useCallback(async () => {
+    const name = newGraphName.trim();
+    if (!name) return;
+    try {
+      await creteNewGraph({
+        id: 0,
+        graphName: name,
+        status: 'ACTIVE',
+        description: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      setNewGraphDialogOpen(false);
+      setNewGraphName('');
+      // Refresh graph list and load the new graph
+      await listGraphs();
+      listGraphNodes(name);
+    } catch (err) {
+      setSnackbar({ message: 'Failed to create graph', severity: 'error' });
+    }
+  }, [newGraphName, creteNewGraph, listGraphs, listGraphNodes]);
+
+  const handleNewGraphCancel = useCallback(() => {
+    setNewGraphDialogOpen(false);
+    setNewGraphName('');
+  }, []);
+
   const handleCanvasDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   }, []);
 
-  const deleteNode = useCallback((nodeId: string) => {
-    setSelectedGraph((prev) => ({
-      ...prev,
-      nodes: prev.nodes.filter((n) => n.id !== nodeId),
-    }));
+  const deleteNode = useCallback(async (nodeId: string) => {
+    const node = canvasNodes.find((n) => n.id === nodeId);
+    if (node?.backendId) {
+      await deleteGraphNode(node.backendId);
+    }
+    setNodeMeta(prev => {
+      const next = { ...prev };
+      delete next[nodeId];
+      return next;
+    });
     if (selectedNode === nodeId) {
       setSelectedNode(null);
     }
-  }, [selectedNode]);
+  }, [canvasNodes, deleteGraphNode, selectedNode]);
 
   const handleConnectionClick = useCallback((sourceId: string, targetId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -347,18 +452,12 @@ export function AgentGraphDesigner() {
     setSelectedConnection({ source: sourceId, target: targetId });
   }, []);
 
-  const deleteConnection = useCallback((sourceId: string, targetId: string) => {
-    setSelectedGraph((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) => {
-        if (n.id === sourceId) {
-          return { ...n, nextHops: n.nextHops.filter((h) => h !== targetId) };
-        }
-        return n;
-      }),
-    }));
+  const deleteConnection = useCallback(async (sourceId: string, targetId: string) => {
+    if (currentGraph) {
+      await deleteEdgeInGraphNode(currentGraph, sourceId, targetId);
+    }
     setSelectedConnection(null);
-  }, []);
+  }, [currentGraph, deleteEdgeInGraphNode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -382,155 +481,143 @@ export function AgentGraphDesigner() {
   };
 
   const handleCompact = useCallback(() => {
-    setSelectedGraph((prev) => {
-      const nodes = prev.nodes;
-      if (nodes.length === 0) return prev;
+    // Apply topological layout to canvas nodes (local positions)
+    const nodes = canvasNodes;
+    if (nodes.length === 0) return;
 
-      // --- 1. Kahn's algorithm for topological layering ---
-      const inDegree: Record<string, number> = {};
-      const children: Record<string, string[]> = {};   // node → its outgoing targets
-      const parents: Record<string, string[]> = {};     // node → its incoming sources
-      nodes.forEach((n) => {
-        inDegree[n.id] = 0;
-        children[n.id] = [];
-        parents[n.id] = [];
-      });
-      nodes.forEach((n) => {
-        n.nextHops.forEach((h) => {
-          if (inDegree[h] !== undefined) {
-            inDegree[h]++;
-            children[n.id].push(h);
-            parents[h].push(n.id);
-          }
-        });
-      });
-
-      const level: Record<string, number> = {};
-      let currentLevel = 0;
-      let queue: string[] = nodes.filter((n) => inDegree[n.id] === 0).map((n) => n.id);
-
-      if (queue.length === 0) {
-        queue = [nodes[0].id];
-      }
-
-      while (queue.length > 0) {
-        const nextQueue: string[] = [];
-        for (const nodeId of queue) {
-          level[nodeId] = currentLevel;
-          for (const child of children[nodeId]) {
-            inDegree[child]--;
-            if (inDegree[child] === 0) {
-              nextQueue.push(child);
-            }
-          }
-        }
-        queue = nextQueue;
-        currentLevel++;
-      }
-
-      nodes.forEach((n) => {
-        if (level[n.id] === undefined) {
-          level[n.id] = currentLevel++;
-        }
-      });
-
-      // --- 2. Group nodes by level ---
-      const levelGroups: Record<number, string[]> = {};
-      nodes.forEach((n) => {
-        const lvl = level[n.id] ?? 0;
-        if (!levelGroups[lvl]) levelGroups[lvl] = [];
-        levelGroups[lvl].push(n.id);
-      });
-      const maxLvl = Math.max(...Object.keys(levelGroups).map(Number));
-
-      // --- 3. Barycenter ordering (top-down + bottom-up) ---
-      // Assign initial order by node insertion order (stable)
-      const nodeOrder: Record<string, number> = {};
-      nodes.forEach((n, i) => { nodeOrder[n.id] = i; });
-
-      // Helper: get X position of a node from the current order within its level
-      const getLevelIndex = (lvl: number, nodeId: string): number => {
-        return levelGroups[lvl].indexOf(nodeId);
-      };
-
-      // Top-down pass (level 1 → max)
-      for (let lvl = 1; lvl <= maxLvl; lvl++) {
-        const ids = levelGroups[lvl];
-        if (ids.length <= 1) continue;
-        // Compute barycenter for each node based on its parents in level lvl-1
-        ids.sort((a, b) => {
-          const parentsA = parents[a].filter((p) => (level[p] ?? -1) === lvl - 1);
-          const parentsB = parents[b].filter((p) => (level[p] ?? -1) === lvl - 1);
-          const avgA = parentsA.length > 0
-            ? parentsA.reduce((sum, p) => sum + getLevelIndex(lvl - 1, p), 0) / parentsA.length
-            : nodeOrder[a];
-          const avgB = parentsB.length > 0
-            ? parentsB.reduce((sum, p) => sum + getLevelIndex(lvl - 1, p), 0) / parentsB.length
-            : nodeOrder[b];
-          return avgA - avgB;
-        });
-        levelGroups[lvl] = ids;
-      }
-
-      // Bottom-up pass (level max-1 → 0)
-      for (let lvl = maxLvl - 1; lvl >= 0; lvl--) {
-        const ids = levelGroups[lvl];
-        if (ids.length <= 1) continue;
-        ids.sort((a, b) => {
-          const childrenA = children[a].filter((c) => (level[c] ?? -1) === lvl + 1);
-          const childrenB = children[b].filter((c) => (level[c] ?? -1) === lvl + 1);
-          const avgA = childrenA.length > 0
-            ? childrenA.reduce((sum, c) => sum + getLevelIndex(lvl + 1, c), 0) / childrenA.length
-            : nodeOrder[a];
-          const avgB = childrenB.length > 0
-            ? childrenB.reduce((sum, c) => sum + getLevelIndex(lvl + 1, c), 0) / childrenB.length
-            : nodeOrder[b];
-          return avgA - avgB;
-        });
-        levelGroups[lvl] = ids;
-      }
-
-      // --- 4. Assign positions with generous spacing ---
-      const VERTICAL_GAP = 200;
-      const HORIZONTAL_GAP = 150;
-      const START_Y = 60;
-      const START_X = 100;
-      const NODE_WIDTH = 80;
-
-      // Flatten ordered node list for position assignment
-      const orderedNodes: string[] = [];
-      for (let lvl = 0; lvl <= maxLvl; lvl++) {
-        if (levelGroups[lvl]) {
-          orderedNodes.push(...levelGroups[lvl]);
-        }
-      }
-
-      // Count max nodes in any level for canvas centering
-      let maxNodesInLevel = 0;
-      Object.values(levelGroups).forEach((g) => {
-        maxNodesInLevel = Math.max(maxNodesInLevel, g.length);
-      });
-      const canvasWidth = maxNodesInLevel * NODE_WIDTH + (maxNodesInLevel - 1) * HORIZONTAL_GAP;
-
-      const updatedNodes = nodes.map((node) => {
-        const lvl = level[node.id] ?? 0;
-        const ids = levelGroups[lvl] || [];
-        const idx = ids.indexOf(node.id);
-
-        // Center the level horizontally
-        const levelTotalWidth = ids.length * NODE_WIDTH + (ids.length - 1) * HORIZONTAL_GAP;
-        const startXForLevel = START_X + (canvasWidth - levelTotalWidth) / 2;
-
-        const x = startXForLevel + idx * (NODE_WIDTH + HORIZONTAL_GAP);
-        const y = START_Y + lvl * VERTICAL_GAP;
-
-        return { ...node, x: Math.max(10, x), y: Math.max(10, y) };
-      });
-
-      return { ...prev, nodes: updatedNodes };
+    // --- 1. Kahn's algorithm for topological layering ---
+    const inDegree: Record<string, number> = {};
+    const children: Record<string, string[]> = {};
+    const parents: Record<string, string[]> = {};
+    nodes.forEach((n) => {
+      inDegree[n.id] = 0;
+      children[n.id] = [];
+      parents[n.id] = [];
     });
+    nodes.forEach((n) => {
+      n.nextHops.forEach((h) => {
+        if (inDegree[h] !== undefined) {
+          inDegree[h]++;
+          children[n.id].push(h);
+          parents[h].push(n.id);
+        }
+      });
+    });
+
+    const level: Record<string, number> = {};
+    let currentLevel = 0;
+    let queue: string[] = nodes.filter((n) => inDegree[n.id] === 0).map((n) => n.id);
+
+    if (queue.length === 0) {
+      queue = [nodes[0].id];
+    }
+
+    while (queue.length > 0) {
+      const nextQueue: string[] = [];
+      for (const nodeId of queue) {
+        level[nodeId] = currentLevel;
+        for (const child of children[nodeId]) {
+          inDegree[child]--;
+          if (inDegree[child] === 0) {
+            nextQueue.push(child);
+          }
+        }
+      }
+      queue = nextQueue;
+      currentLevel++;
+    }
+
+    nodes.forEach((n) => {
+      if (level[n.id] === undefined) {
+        level[n.id] = currentLevel++;
+      }
+    });
+
+    // --- 2. Group nodes by level ---
+    const levelGroups: Record<number, string[]> = {};
+    nodes.forEach((n) => {
+      const lvl = level[n.id] ?? 0;
+      if (!levelGroups[lvl]) levelGroups[lvl] = [];
+      levelGroups[lvl].push(n.id);
+    });
+    const maxLvl = Math.max(...Object.keys(levelGroups).map(Number));
+
+    // --- 3. Barycenter ordering ---
+    const nodeOrder: Record<string, number> = {};
+    nodes.forEach((n, i) => { nodeOrder[n.id] = i; });
+
+    const getLevelIndex = (lvl: number, nodeId: string): number => {
+      return levelGroups[lvl].indexOf(nodeId);
+    };
+
+    // Top-down pass
+    for (let lvl = 1; lvl <= maxLvl; lvl++) {
+      const ids = levelGroups[lvl];
+      if (ids.length <= 1) continue;
+      ids.sort((a, b) => {
+        const parentsA = parents[a].filter((p) => (level[p] ?? -1) === lvl - 1);
+        const parentsB = parents[b].filter((p) => (level[p] ?? -1) === lvl - 1);
+        const avgA = parentsA.length > 0
+          ? parentsA.reduce((sum, p) => sum + getLevelIndex(lvl - 1, p), 0) / parentsA.length
+          : nodeOrder[a];
+        const avgB = parentsB.length > 0
+          ? parentsB.reduce((sum, p) => sum + getLevelIndex(lvl - 1, p), 0) / parentsB.length
+          : nodeOrder[b];
+        return avgA - avgB;
+      });
+      levelGroups[lvl] = ids;
+    }
+
+    // Bottom-up pass
+    for (let lvl = maxLvl - 1; lvl >= 0; lvl--) {
+      const ids = levelGroups[lvl];
+      if (ids.length <= 1) continue;
+      ids.sort((a, b) => {
+        const childrenA = children[a].filter((c) => (level[c] ?? -1) === lvl + 1);
+        const childrenB = children[b].filter((c) => (level[c] ?? -1) === lvl + 1);
+        const avgA = childrenA.length > 0
+          ? childrenA.reduce((sum, c) => sum + getLevelIndex(lvl + 1, c), 0) / childrenA.length
+          : nodeOrder[a];
+        const avgB = childrenB.length > 0
+          ? childrenB.reduce((sum, c) => sum + getLevelIndex(lvl + 1, c), 0) / childrenB.length
+          : nodeOrder[b];
+        return avgA - avgB;
+      });
+      levelGroups[lvl] = ids;
+    }
+
+    // --- 4. Assign positions ---
+    const VERTICAL_GAP = 200;
+    const HORIZONTAL_GAP = 150;
+    const START_Y = 60;
+    const START_X = 100;
+    const NODE_WIDTH = 80;
+
+    let maxNodesInLevel = 0;
+    Object.values(levelGroups).forEach((g) => {
+      maxNodesInLevel = Math.max(maxNodesInLevel, g.length);
+    });
+    const canvasWidth = maxNodesInLevel * NODE_WIDTH + (maxNodesInLevel - 1) * HORIZONTAL_GAP;
+
+    const newMeta: Record<string, NodeMeta> = {};
+    nodes.forEach((node) => {
+      const lvl = level[node.id] ?? 0;
+      const ids = levelGroups[lvl] || [];
+      const idx = ids.indexOf(node.id);
+      const levelTotalWidth = ids.length * NODE_WIDTH + (ids.length - 1) * HORIZONTAL_GAP;
+      const startXForLevel = START_X + (canvasWidth - levelTotalWidth) / 2;
+      const x = startXForLevel + idx * (NODE_WIDTH + HORIZONTAL_GAP);
+      const y = START_Y + lvl * VERTICAL_GAP;
+
+      newMeta[node.id] = {
+        ...(nodeMeta[node.id] || { type: 'square' }),
+        x: Math.max(10, x),
+        y: Math.max(10, y),
+      };
+    });
+    setNodeMeta(newMeta);
     setSelectedNode(null);
-  }, []);
+  }, [canvasNodes, nodeMeta]);
 
   const getNodeElement = (node: GraphNode) => {
     const isSelected = selectedNode === node.id;
@@ -776,7 +863,6 @@ export function AgentGraphDesigner() {
     const exitPort = getNodeEdgePort(source, exitSide);
     const entryPort = getNodeEdgePort(target, entrySide);
 
-    // Direction vectors (outward from port)
     const dirs: Record<string, { x: number; y: number }> = {
       bottom: { x: 0, y: 1 }, top: { x: 0, y: -1 },
       right: { x: 1, y: 0 }, left: { x: -1, y: 0 },
@@ -788,7 +874,6 @@ export function AgentGraphDesigner() {
     const p1 = { x: exitPort.x + ed.x * GAP, y: exitPort.y + ed.y * GAP };
     const p2 = { x: entryPort.x + end.x * GAP, y: entryPort.y + end.y * GAP };
 
-    // Build path from p1 to p2, adding a corner if needed
     let path = `M ${exitPort.x} ${exitPort.y} L ${p1.x} ${p1.y}`;
     if (p1.x !== p2.x && p1.y !== p2.y) {
       path += ` L ${p1.x} ${p2.y}`;
@@ -801,9 +886,9 @@ export function AgentGraphDesigner() {
   const renderConnections = () => {
     const connections: React.ReactNode[] = [];
 
-    selectedGraph.nodes.forEach((node) => {
+    canvasNodes.forEach((node) => {
       node.nextHops.forEach((nextHopId) => {
-        const targetNode = selectedGraph.nodes.find((n) => n.id === nextHopId);
+        const targetNode = canvasNodes.find((n) => n.id === nextHopId);
         if (targetNode) {
           const { path } = getNearestEdgeRoute(node, targetNode);
           const isSelected = selectedConnection?.source === node.id && selectedConnection?.target === nextHopId;
@@ -853,118 +938,164 @@ export function AgentGraphDesigner() {
     if (!editingNodeData) return [];
     return editingNodeData.nextHops
       .map((hopId) => {
-        const hopNode = selectedGraph.nodes.find((n) => n.id === hopId);
+        const hopNode = canvasNodes.find((n) => n.id === hopId);
         return hopNode?.label ?? hopId;
       });
-  }, [editingNodeData, selectedGraph.nodes]);
+  }, [editingNodeData, canvasNodes]);
 
-  const handleNodeSaved = useCallback((updatedNode: GraphNode) => {
-    setSelectedGraph((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) => (n.id === updatedNode.id ? updatedNode : n)),
-    }));
-  }, []);
+  const handleNodeSaved = useCallback(async (updatedNode: GraphNode) => {
+    // Convert GraphNode back to AgentNodeDTO for the store action
+    const dto: AgentNodeDTO = {
+      id: updatedNode.backendId ?? 0,
+      graphName: updatedNode.graphName ?? currentGraph ?? '',
+      nodeName: updatedNode.label,
+      timestamp: updatedNode.timestamp ?? Date.now(),
+      instruction: updatedNode.instruction ?? '',
+      modelName: updatedNode.modelName ?? '',
+      agentInitParams: updatedNode.agentInitParams ?? '',
+      tools: updatedNode.tools ?? '',
+      nextHops: updatedNode.nextHops.join(','),
+      nodeFlag: updatedNode.nodeFlag ?? 0,
+      status: updatedNode.status ?? 'ACTIVE',
+      description: updatedNode.description ?? '',
+      createdAt: updatedNode.createdAt as unknown as Date,
+      updatedAt: new Date(),
+    };
+    await updateGraphNode(dto);
+  }, [currentGraph, updateGraphNode]);
+
+  const selectedGraphName = currentGraph ?? '';
+  const selectedGraphNodeCount = canvasNodes.length;
 
   return (
     <>
     <div style={{ display: 'flex', height: 'calc(100vh - 180px)', gap: 12 }}>
-      {/* 左侧功能列表 */}
-      <div style={{ width: 200, flexShrink: 0 }}>
-        <Paper
-          elevation={1}
-          sx={{
-            height: '100%',
-            p: 2,
-            borderRadius: 2,
-            backgroundColor: '#fafbfc',
-          }}
-        >
-          <Typography variant="subtitle2" fontWeight={600} color="text.secondary" mb={2}>
-            Function List
-          </Typography>
-          <Stack spacing={1.5}>
-            {functionList.map((func) => (
-              <Button
-                key={func.id}
-                variant={selectedFunction === func.id ? 'contained' : 'outlined'}
-                fullWidth
-                onClick={() => handleFunctionSelect(func.id)}
-                sx={{
-                  justifyContent: 'flex-start',
-                  textTransform: 'none',
-                  borderRadius: 1.5,
-                  py: 1.5,
-                }}
-              >
-                <Typography variant="body2" fontWeight={600} textAlign="left">
-                  {func.label}
-                </Typography>
-              </Button>
-            ))}
-          </Stack>
-        </Paper>
-      </div>
+      {/* 左侧面板 (Function List + Graph List, collapsible) */}
+      <div style={{
+        width: leftPanelCollapsed ? 40 : 200,
+        flexShrink: 0,
+        transition: 'width 0.3s ease',
+        overflow: 'hidden',
+        position: 'relative' as const,
+      }}>
+        {leftPanelCollapsed ? (
+          <Paper elevation={1} sx={{ height: '100%', borderRadius: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', py: 1.5, backgroundColor: '#fafbfc' }}>
+            <IconButton size="small" onClick={() => setLeftPanelCollapsed(false)} sx={{ color: '#0b4f6c' }}>
+              <ChevronRight sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Paper>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
+            {/* Chat Case Graphs */}
+            <Paper elevation={1} sx={{ borderRadius: 2, backgroundColor: '#fafbfc', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#f0f4f8' }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Box sx={{ width: 4, height: 16, bgcolor: '#0b4f6c', borderRadius: 2 }} />
+                  <Typography variant="subtitle2" fontWeight={700} color="#102a43" fontSize={13}>
+                    Chat Case Graphs
+                  </Typography>
+                </Stack>
+                <IconButton size="small" onClick={() => setLeftPanelCollapsed(true)} sx={{ color: '#627d98', p: 0.5 }}>
+                  <ChevronLeft sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
+              <Box sx={{ p: 2, flex: 1, overflowY: 'auto' }}>
+                <Stack spacing={1.5}>
+                  {chatCaseGraphs.map((cg) => (
+                    <Button
+                      key={cg.id}
+                      variant={selectedChatCase === cg.id ? 'contained' : 'outlined'}
+                      fullWidth
+                      onClick={() => handleChatCaseSelect(cg.id)}
+                      sx={{
+                        justifyContent: 'flex-start',
+                        textTransform: 'none',
+                        borderRadius: 1.5,
+                        py: 1.5,
+                      }}
+                    >
+                      <Stack spacing={0.5} sx={{ minWidth: 0, textAlign: 'left' }}>
+                        <Typography variant="body2" fontWeight={600} noWrap>
+                          {cg.graphName}
+                        </Typography>
+                        {cg.description && (
+                          <Typography variant="caption" color="text.secondary" noWrap>
+                            {cg.description}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Button>
+                  ))}
+                  {chatCaseGraphs.length === 0 && (
+                    <Typography variant="caption" color="text.disabled" textAlign="center">
+                      暂无 Chat Case
+                    </Typography>
+                  )}
+                </Stack>
+              </Box>
+            </Paper>
 
-      {/* 中图列表 */}
-      <div style={{ width: 200, flexShrink: 0 }}>
-        <Paper
-          elevation={1}
-          sx={{
-            height: '100%',
-            p: 2,
-            borderRadius: 2,
-            backgroundColor: '#fafbfc',
-          }}
-        >
-          <Typography variant="subtitle2" fontWeight={600} color="text.secondary" mb={2}>
-            Graph List
-          </Typography>
-          <Stack spacing={1}>
-            {mockGraphs.map((graph) => (
-              <Button
-                key={graph.id}
-                variant={selectedGraph.id === graph.id ? 'contained' : 'outlined'}
-                fullWidth
-                onClick={() => handleGraphSelect(graph)}
-                sx={{
-                  justifyContent: 'flex-start',
-                  textTransform: 'none',
-                  borderRadius: 1.5,
-                  py: 1.25,
-                }}
-                startIcon={
-                  selectedGraph.id === graph.id ? (
-                    <ChevronRight sx={{ fontSize: 16 }} />
-                  ) : null
-                }
-              >
-                <Typography variant="body2" fontWeight={500}>
-                  {graph.name}
-                </Typography>
-                {selectedGraph.id === graph.id && (
-                  <Chip
-                    size="small"
-                    label={`${graph.nodes.length} nodes`}
-                    sx={{ ml: 'auto', fontSize: 10 }}
-                  />
-                )}
-              </Button>
-            ))}
-          </Stack>
-          <Divider sx={{ my: 2 }} />
-          <Button
-            variant="outlined"
-            fullWidth
-            startIcon={<Add sx={{ fontSize: 16 }} />}
-            sx={{
-              justifyContent: 'flex-start',
-              textTransform: 'none',
-              borderRadius: 1.5,
-            }}
-          >
-            <Typography variant="body2">New Graph</Typography>
-          </Button>
-        </Paper>
+            {/* Graph List - from store */}
+            <Paper elevation={1} sx={{ borderRadius: 2, backgroundColor: '#fafbfc', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#f0f4f8' }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Box sx={{ width: 4, height: 16, bgcolor: '#0b4f6c', borderRadius: 2 }} />
+                  <Typography variant="subtitle2" fontWeight={700} color="#102a43" fontSize={13}>
+                    Graph List
+                  </Typography>
+                </Stack>
+              </Box>
+              <Box sx={{ p: 2, flex: 1, overflowY: 'auto' }}>
+                <Stack spacing={1}>
+                  {graphList.map((graph) => (
+                    <Button
+                      key={graph.id}
+                      variant={currentGraph === graph.graphName ? 'contained' : 'outlined'}
+                      fullWidth
+                      onClick={() => handleGraphSelect(graph.graphName)}
+                      sx={{
+                        justifyContent: 'flex-start',
+                        textTransform: 'none',
+                        borderRadius: 1.5,
+                        py: 1.25,
+                      }}
+                      startIcon={
+                        currentGraph === graph.graphName ? (
+                          <ChevronRight sx={{ fontSize: 16 }} />
+                        ) : null
+                      }
+                    >
+                      <Typography variant="body2" fontWeight={500}>
+                        {graph.graphName}
+                      </Typography>
+                      {currentGraph === graph.graphName && (
+                        <Chip
+                          size="small"
+                          label={`${selectedGraphNodeCount} nodes`}
+                          sx={{ ml: 'auto', fontSize: 10 }}
+                        />
+                      )}
+                    </Button>
+                  ))}
+                </Stack>
+                <Divider sx={{ my: 2 }} />
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  startIcon={<Add sx={{ fontSize: 16 }} />}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    borderRadius: 1.5,
+                  }}
+                  onClick={handleNewGraphOpen}
+                >
+                  <Typography variant="body2">New Graph</Typography>
+                </Button>
+              </Box>
+            </Paper>
+          </div>
+        )}
       </div>
 
       {/* 中间图形编辑器 */}
@@ -984,11 +1115,18 @@ export function AgentGraphDesigner() {
               justifyContent: 'space-between',
               alignItems: 'center',
               mb: 2,
+              px: 1.5,
+              py: 1,
+              bgcolor: '#f0f4f8',
+              borderRadius: 1.5,
             }}
           >
-            <Typography variant="subtitle2" fontWeight={600}>
-              {selectedGraph.name}
-            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Box sx={{ width: 4, height: 18, bgcolor: '#0b4f6c', borderRadius: 2 }} />
+              <Typography variant="subtitle2" fontWeight={700} color="#102a43" fontSize={14}>
+                {selectedGraphName}
+              </Typography>
+            </Stack>
             <Stack direction="row" spacing={1}>
               {selectedNode && (
                 <Tooltip title="Edit Node">
@@ -1041,10 +1179,11 @@ export function AgentGraphDesigner() {
               overflow: 'auto',
             }}
           >
-            {selectedGraph.nodes.map((node) => getNodeElement(node))}
+            {/* Render nodes from store-backed canvasNodes */}
+            {canvasNodes.map((node) => getNodeElement(node))}
 
             {/* Input port handles (top of nodes) */}
-            {selectedGraph.nodes.map((node) => {
+            {canvasNodes.map((node) => {
               const topCX = node.x + (node.type === 'square' ? 60 : 40);
               const topCY = node.y;
               return (
@@ -1068,9 +1207,9 @@ export function AgentGraphDesigner() {
             })}
 
             {/* Connection endpoint dots */}
-            {selectedGraph.nodes.map((node) =>
+            {canvasNodes.map((node) =>
               node.nextHops.map((nextHopId) => {
-                const targetNode = selectedGraph.nodes.find((n) => n.id === nextHopId);
+                const targetNode = canvasNodes.find((n) => n.id === nextHopId);
                 if (!targetNode) return null;
                 const { entryPort } = getNearestEdgeRoute(node, targetNode);
                 return (
@@ -1132,9 +1271,9 @@ export function AgentGraphDesigner() {
               height={svgBounds.h}
               style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 300 }}
             >
-              {selectedGraph.nodes.map((node) =>
+              {canvasNodes.map((node) =>
                 node.nextHops.map((nextHopId) => {
-                  const targetNode = selectedGraph.nodes.find((n) => n.id === nextHopId);
+                  const targetNode = canvasNodes.find((n) => n.id === nextHopId);
                   if (!targetNode) return null;
                   const { entryPort, entrySide } = getNearestEdgeRoute(node, targetNode);
                   const { x, y } = entryPort;
@@ -1142,19 +1281,15 @@ export function AgentGraphDesigner() {
                   let points: string;
                   switch (entrySide) {
                     case 'top':
-                      // tip at top edge, pointing down into node
                       points = `${x},${y} ${x - s},${y - s * 1.4} ${x + s},${y - s * 1.4}`;
                       break;
                     case 'bottom':
-                      // tip at bottom edge, pointing up into node
                       points = `${x},${y} ${x - s},${y + s * 1.4} ${x + s},${y + s * 1.4}`;
                       break;
                     case 'left':
-                      // tip at left edge, pointing right into node
                       points = `${x},${y} ${x - s * 1.4},${y - s} ${x - s * 1.4},${y + s}`;
                       break;
                     case 'right':
-                      // tip at right edge, pointing left into node
                       points = `${x},${y} ${x + s * 1.4},${y - s} ${x + s * 1.4},${y + s}`;
                       break;
                     default:
@@ -1171,7 +1306,7 @@ export function AgentGraphDesigner() {
               )}
             </svg>
 
-            {selectedGraph.nodes.length === 0 && (
+            {canvasNodes.length === 0 && (
               <div
                 style={{
                   position: 'absolute',
@@ -1199,14 +1334,22 @@ export function AgentGraphDesigner() {
           elevation={1}
           sx={{
             height: '100%',
-            p: 2,
             borderRadius: 2,
             backgroundColor: '#fafbfc',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
           }}
         >
-          <Typography variant="subtitle2" fontWeight={600} color="text.secondary" mb={2}>
-            Component Elements
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#f0f4f8' }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Box sx={{ width: 4, height: 16, bgcolor: '#0b4f6c', borderRadius: 2 }} />
+              <Typography variant="subtitle2" fontWeight={700} color="#102a43" fontSize={13}>
+                Component Elements
+              </Typography>
+            </Stack>
+          </Box>
+          <Box sx={{ p: 2, flex: 1, overflowY: 'auto' }}>
           <Stack spacing={2}>
             {componentElements.map((element) => (
               <div
@@ -1249,14 +1392,15 @@ export function AgentGraphDesigner() {
               </Typography>
               <Paper sx={{ p: 2, borderRadius: 1 }}>
                 <Typography variant="body2" fontWeight={600}>
-                  {selectedGraph.nodes.find((n) => n.id === selectedNode)?.label}
+                  {canvasNodes.find((n) => n.id === selectedNode)?.label}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" mt={1} display="block">
-                  {selectedGraph.nodes.find((n) => n.id === selectedNode)?.type}
+                  {canvasNodes.find((n) => n.id === selectedNode)?.type}
                 </Typography>
               </Paper>
             </div>
           )}
+          </Box>
         </Paper>
       </div>
     </div>
@@ -1264,7 +1408,7 @@ export function AgentGraphDesigner() {
       <EditNodeModal
         open={editNodeModalOpen}
         node={editingNodeData}
-        graphName={selectedGraph.name}
+        graphName={selectedGraphName}
         connectionTargets={connectionTargets}
         onClose={() => {
           setEditNodeModalOpen(false);
@@ -1272,6 +1416,29 @@ export function AgentGraphDesigner() {
         }}
         onSaved={handleNodeSaved}
       />
+
+      <Dialog open={newGraphDialogOpen} onClose={handleNewGraphCancel} maxWidth="xs" fullWidth>
+        <DialogTitle>新建 Graph</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Graph 名称"
+            placeholder="请输入 graph 名称"
+            fullWidth
+            variant="outlined"
+            value={newGraphName}
+            onChange={(e) => setNewGraphName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleNewGraphConfirm();
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleNewGraphCancel}>取消</Button>
+          <Button onClick={handleNewGraphConfirm} variant="contained">确认</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={pendingNewNode !== null} onClose={handleNewNodeCancel} maxWidth="xs" fullWidth>
         <DialogTitle>新节点名称</DialogTitle>
