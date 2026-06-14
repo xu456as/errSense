@@ -17,3 +17,25 @@ CREATE TABLE agent_node (
     INDEX idx_graph_name (graph_name),
     INDEX idx_status (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent节点表';
+
+CREATE TABLE agent_graph (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    graph_name VARCHAR(255) NOT NULL COMMENT '图名称，唯一标识一个图',
+    `status` VARCHAR(50) DEFAULT 'ACTIVE' COMMENT '图状态：ACTIVE/INACTIVE/DELETED',
+    `description` VARCHAR(1000) COMMENT '图描述信息',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
+    UNIQUE KEY uk_graph_name (graph_name),
+    INDEX idx_graph_status (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent图表';
+
+CREATE TABLE chat_case_graph (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    chat_case VARCHAR(255) NOT NULL COMMENT 'Chat case标识',
+    graph_name VARCHAR(255) NOT NULL COMMENT '图名称，关联agent_graph表',
+    `description` VARCHAR(1000) COMMENT '记录描述信息',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
+    UNIQUE KEY uk_chat_case (chat_case),
+    INDEX idx_graph_name (graph_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Chat Case与Agent Graph关联表';
