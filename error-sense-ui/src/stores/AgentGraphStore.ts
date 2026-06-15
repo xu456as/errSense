@@ -4,17 +4,23 @@ import { apiFetch, apiPost } from '../api/client';
 import { AgentGraphDTO, AgentNodeDTO, ChatCaseGraphDTO } from '../api/contract';
 
 interface AgentGraphState {
-    chatCaseGraphs: AgentGraphDTO[];
+    chatCaseGraphs: ChatCaseGraphDTO[];
+    chatCaseOptions: string[];
     graphList: AgentGraphDTO[];
     currentGraph: string | null;
     graphNodes: AgentNodeDTO[];
+    modelOptions: string[];
+    toolOptions: string[];
 }
 
 const initialState: AgentGraphState = {
   chatCaseGraphs: [],
+  chatCaseOptions: [],
   graphList: [],
   currentGraph: null,
-  graphNodes: []
+  graphNodes: [],
+  modelOptions: [],
+  toolOptions: []
 };
 
 interface AgentGraphAction {
@@ -28,7 +34,11 @@ interface AgentGraphAction {
     deleteEdgeInGraphNode: (graphName: string, nodeName: string, nextHopToRemove: string) => Promise<void>;
     addEdgeToGraphNode: (graphName: string, nodeName: string, nextHopToAdd: string) => Promise<void>;
     configureChatCaseGraph: (chatCase: string, graphName: string) => Promise<void>;
-    listChatChaseGraphs: () => Promise<AgentGraphDTO[]>;
+    listChatChaseGraphs: () => Promise<ChatCaseGraphDTO[]>;
+    listChatCaseOptions: () => Promise<string[]>;
+    setCurrentGraph: (graphName: string | null) => void;
+    listModelOptions: () => Promise<string[]>;
+    listToolOptions: () => Promise<string[]>;
 }
 export const useErrReportStore = create<AgentGraphState & AgentGraphAction>((set, get) => ({
   ...initialState,
@@ -200,18 +210,50 @@ export const useErrReportStore = create<AgentGraphState & AgentGraphAction>((set
     set({ chatCaseGraphs: [] });
     try {
       const response = await apiFetch<ChatCaseGraphDTO[]>('/api/graph/chat-case');
-      const graphs: AgentGraphDTO[] = response.map(item => ({
-        id: item.id,
-        graphName: item.graphName,
-        status: '',
-        description: item.description,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt
-      }));
-      set({ chatCaseGraphs: graphs });
-      return graphs;
+      set({ chatCaseGraphs: response });
+      return response;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to list chat case graphs';
+      console.error(message);
+      return [];
+    }
+  },
+
+  listChatCaseOptions: async () => {
+    try {
+      const response = await apiFetch<string[]>('/api/graph/chatCases');
+      set({ chatCaseOptions: response });
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to list chat case options';
+      console.error(message);
+      return [];
+    }
+  },
+
+  setCurrentGraph: (graphName) => {
+    set({ currentGraph: graphName });
+  },
+
+  listModelOptions: async () => {
+    try {
+      const response = await apiFetch<string[]>('/api/nodes/modelOptions');
+      set({ modelOptions: response });
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to list model options';
+      console.error(message);
+      return [];
+    }
+  },
+
+  listToolOptions: async () => {
+    try {
+      const response = await apiFetch<string[]>('/api/nodes/toolOptions');
+      set({ toolOptions: response });
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to list tool options';
       console.error(message);
       return [];
     }

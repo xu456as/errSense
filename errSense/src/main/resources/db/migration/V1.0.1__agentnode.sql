@@ -8,13 +8,12 @@ CREATE TABLE agent_node (
     agent_init_params TEXT COMMENT 'Agent初始化参数，JSON格式存储',
     tools TEXT COMMENT 'Agent工具列表，JSON数组格式',
     next_hops TEXT COMMENT '下游节点名称列表，JSON数组格式',
-    node_flag BIGINT DEFAULT 0 COMMENT '节点标识：0-普通节点，1-初始状态节点',
+    node_flag BIGINT DEFAULT 0 COMMENT '节点标识：0-普通节点，1-初始状态节点，2-决策节点，3-结束节点',
     `status` VARCHAR(50) DEFAULT 'ACTIVE' COMMENT '节点状态：ACTIVE/INACTIVE/DELETED',
     `description` VARCHAR(1000) COMMENT '节点描述信息',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
-    UNIQUE KEY uk_graphnodetimestamp (graph_name, node_name, `timestamp`),
-    INDEX idx_graph_name (graph_name),
+    UNIQUE KEY uk_graphnode (graph_name, node_name),
     INDEX idx_status (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent节点表';
 

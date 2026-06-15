@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,6 +31,21 @@ public class AgentNodeController {
         this.repository = repository;
         this.dagAgentExecutor = dagAgentExecutor;
         this.stateMachineAgentExecutor = stateMachineAgentExecutor;
+    }
+    @GetMapping("/modelOptions")
+    public ResponseEntity<List<String>> modelOptions() {
+        List<String> list = new ArrayList<>();
+        list.add("gemini-2.5-flash");
+        list.add("gemini-2.5-pro");
+        return ResponseEntity.ok(list);
+    }
+
+    @GetMapping("/toolOptions")
+    public ResponseEntity<List<String>> toolOptions() {
+        List<String> list = new ArrayList<>();
+        list.add("mcp:abc://mcp");
+        list.add("function:callStack");
+        return ResponseEntity.ok(list);
     }
 
     @GetMapping("/graph/{graphName}/execute")

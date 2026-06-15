@@ -20,7 +20,7 @@ export const theme = createTheme({
     borderRadius: 16,
   },
   typography: {
-    fontFamily: '"Segoe UI", "Helvetica Neue", sans-serif',
+    fontFamily: '"Segoe UI", sans-serif',
     h4: {
       fontWeight: 700,
     },

@@ -6,16 +6,19 @@ import {
   TextField,
   Button,
   Stack,
+  CircularProgress,
+  Alert,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
-  CircularProgress,
-  Alert,
+  Autocomplete,
+  Checkbox,
+  ListItemText,
 } from '@mui/material';
 import MDEditor from '@uiw/react-md-editor';
-
-const API_BASE = '/api/nodes';
+import { apiFetch, apiPost } from '../api/client';
+import { useErrReportStore } from '../stores/AgentGraphStore';
 
 interface GraphNode {
   id: string;
@@ -48,15 +51,24 @@ interface Props {
 }
 
 export default function EditNodeModal({ open, node, graphName, connectionTargets, onClose, onSaved }: Props) {
+  const { modelOptions, toolOptions, listModelOptions, listToolOptions } = useErrReportStore();
+  
   const [instruction, setInstruction] = useState('');
   const [modelName, setModelName] = useState('');
   const [agentInitParams, setAgentInitParams] = useState('');
-  const [tools, setTools] = useState('');
-  const [status, setStatus] = useState('ACTIVE');
+  const [tools, setTools] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Refresh options when modal opens
+  useEffect(() => {
+    if (open) {
+      listModelOptions();
+      listToolOptions();
+    }
+  }, [open, listModelOptions, listToolOptions]);
 
   // Populate form when node changes
   useEffect(() => {
@@ -64,8 +76,9 @@ export default function EditNodeModal({ open, node, graphName, connectionTargets
       setInstruction(node.instruction ?? '');
       setModelName(node.modelName ?? '');
       setAgentInitParams(node.agentInitParams ?? '');
-      setTools(node.tools ?? '');
-      setStatus(node.status ?? 'ACTIVE');
+      // Parse tools from string to array
+      const nodeTools = node.tools ? JSON.parse(node.tools) : [];
+      setTools(Array.isArray(nodeTools) ? nodeTools : []);
       setDescription(node.description ?? '');
       setError(null);
       setSuccess(false);
@@ -85,39 +98,26 @@ export default function EditNodeModal({ open, node, graphName, connectionTargets
       instruction: instruction || null,
       modelName: modelName || null,
       agentInitParams: agentInitParams || null,
-      tools: tools || null,
+      tools: tools.length > 0 ? JSON.stringify(tools) : null,
       nextHops: connectionTargets.length > 0
         ? `["${connectionTargets.join('","')}"]`
         : null,
       nodeFlag: node.nodeFlag ?? 0,
-      status: status || 'ACTIVE',
       description: description || null,
     };
 
     try {
-      let res: Response;
+      let saved;
       if (node.backendId) {
         // Update existing
-        res = await fetch(`${API_BASE}/${node.backendId}`, {
+        saved = await apiFetch<any>(`/api/nodes/${node.backendId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       } else {
         // Create new
-        res = await fetch(API_BASE, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        saved = await apiPost<any>('/api/nodes', payload);
       }
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || `HTTP ${res.status}`);
-      }
-
-      const saved = await res.json();
       setSuccess(true);
 
       // Build updated node
@@ -148,7 +148,7 @@ export default function EditNodeModal({ open, node, graphName, connectionTargets
     } finally {
       setSaving(false);
     }
-  }, [node, graphName, connectionTargets, instruction, modelName, agentInitParams, tools, status, description, onClose, onSaved]);
+  }, [node, graphName, connectionTargets, instruction, modelName, agentInitParams, tools, description, onClose, onSaved]);
 
   const handleClose = useCallback(() => {
     if (!saving) {
@@ -243,14 +243,21 @@ export default function EditNodeModal({ open, node, graphName, connectionTargets
               />
             </Box>
 
-            <TextField
-              label="Model Name"
-              value={modelName}
-              onChange={(e) => setModelName(e.target.value)}
-              size="small"
-              fullWidth
-              placeholder="e.g. gpt-4"
-            />
+            <FormControl size="small" fullWidth>
+              <InputLabel>Model Name</InputLabel>
+              <Select
+                value={modelName}
+                label="Model Name"
+                onChange={(e) => setModelName(e.target.value)}
+              >
+                <MenuItem value="">None</MenuItem>
+                {modelOptions.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
             <TextField
               label="Agent Init Params (JSON)"
@@ -263,29 +270,29 @@ export default function EditNodeModal({ open, node, graphName, connectionTargets
               placeholder='e.g. {"temperature": 0.7}'
             />
 
-            <TextField
-              label="Tools (JSON list)"
+            <Autocomplete
+              multiple
+              options={toolOptions}
               value={tools}
-              onChange={(e) => setTools(e.target.value)}
-              size="small"
-              fullWidth
-              multiline
-              rows={3}
-              placeholder='e.g. ["web_search", "code_interpreter"]'
+              onChange={(_, newValue) => setTools(newValue)}
+              disableCloseOnSelect
+              renderOption={(props, option, { selected }) => (
+                <Box component="li" sx={{ '& > img': { mr: 2, flexShrink: 0 } }} {...props}>
+                  <Checkbox checked={selected} />
+                  <ListItemText primary={option} />
+                </Box>
+              )}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Tools (searchable)"
+                  placeholder="Search tools..."
+                  size="small"
+                  fullWidth
+                />
+              )}
+              sx={{ maxHeight: 200 }}
             />
-
-            <FormControl size="small" fullWidth>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={status}
-                label="Status"
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                <MenuItem value="ACTIVE">ACTIVE</MenuItem>
-                <MenuItem value="INACTIVE">INACTIVE</MenuItem>
-                <MenuItem value="DRAFT">DRAFT</MenuItem>
-              </Select>
-            </FormControl>
 
             <TextField
               label="Description"
