@@ -275,7 +275,7 @@ export function AgentGraphDesigner() {
     e.preventDefault();
     e.stopPropagation();
 
-    const canvasDiv = (e.currentTarget as HTMLElement).parentElement;
+    const canvasDiv = (e.currentTarget as HTMLElement).closest('[data-canvas]') as HTMLElement;
     if (!canvasDiv) return;
 
     const canvasRect = canvasDiv.getBoundingClientRect();
@@ -401,8 +401,8 @@ export function AgentGraphDesigner() {
           if (hasCycle(canvasNodes, connectionSource.nodeId, node.id)) {
             setSnackbar({ message: 'Cannot create connection: this would create a cycle in the graph', severity: 'error' });
           } else if (currentGraph) {
-            // Create connection via store action
-            addEdgeToGraphNode(currentGraph, connectionSource.nodeId, node.id);
+            // Create connection via store action - use node labels (nodeName) not IDs
+            addEdgeToGraphNode(currentGraph, sourceNode.label, node.label);
             // Optimistically update local state
             setNodeMeta(prev => prev);
           }
@@ -588,10 +588,15 @@ export function AgentGraphDesigner() {
 
   const deleteConnection = useCallback(async (sourceId: string, targetId: string) => {
     if (currentGraph) {
-      await deleteEdgeInGraphNode(currentGraph, sourceId, targetId);
+      // Find node labels (nodeName) from IDs
+      const sourceNode = canvasNodes.find(n => n.id === sourceId);
+      const targetNode = canvasNodes.find(n => n.id === targetId);
+      if (sourceNode && targetNode) {
+        await deleteEdgeInGraphNode(currentGraph, sourceNode.label, targetNode.label);
+      }
     }
     setSelectedConnection(null);
-  }, [currentGraph, deleteEdgeInGraphNode]);
+  }, [currentGraph, deleteEdgeInGraphNode, canvasNodes]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -940,94 +945,43 @@ export function AgentGraphDesigner() {
           </Tooltip>
         ) : startNodeContent;
       case 2: // 决策节点 → yellow diamond
-        if (node.description) {
-          return (
-            <Tooltip key={node.id} title={node.description} placement="top">
-              <div style={{ position: 'absolute', left: node.x, top: node.y }}>
-                <div
-                  {...baseProps}
-                  style={{
-                    ...baseProps.style,
-                    position: 'relative' as const,
-                    left: 0,
-                    top: 0,
-                    width: 80,
-                    height: 80,
-                    backgroundColor: '#ffb703',
-                    transform: 'rotate(45deg)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: isSelected ? '0 0 0 4px rgba(255, 183, 3, 0.5)' : '0 4px 12px rgba(0,0,0,0.1)',
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    fontWeight={600}
-                    color="#102a43"
-                    style={{
-                      transform: 'rotate(-45deg)',
-                      width: '60px',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {node.label}
-                  </Typography>
-                </div>
-                {/* Connection handle outside rotated div */}
-                <div
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    handleConnectionStart(e, node.id);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    left: 40 - 8,
-                    top: 80 - 8,
-                    width: 16,
-                    height: 16,
-                    borderRadius: '50%',
-                    backgroundColor: '#0b4f6c',
-                    border: '2px solid white',
-                    cursor: 'crosshair',
-                    zIndex: 10,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                  }}
-                  title="Drag to create connection"
-                />
-              </div>
-            </Tooltip>
-          );
-        }
-        return (
-          <React.Fragment key={node.id}>
-            <div
-              {...baseProps}
+        const diamondNode = (
+          <div
+            {...baseProps}
+            key={node.id}
+            style={{
+              ...baseProps.style,
+              width: 80,
+              height: 80,
+              backgroundColor: '#ffb703',
+              transform: 'rotate(45deg)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: isSelected ? '0 0 0 4px rgba(255, 183, 3, 0.5)' : '0 4px 12px rgba(0,0,0,0.1)',
+            }}
+          >
+            <Typography
+              variant="caption"
+              fontWeight={600}
+              color="#102a43"
               style={{
-                ...baseProps.style,
-                width: 80,
-                height: 80,
-                backgroundColor: '#ffb703',
-                transform: 'rotate(45deg)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: isSelected ? '0 0 0 4px rgba(255, 183, 3, 0.5)' : '0 4px 12px rgba(0,0,0,0.1)',
+                transform: 'rotate(-45deg)',
+                width: '60px',
+                textAlign: 'center',
               }}
             >
-              <Typography
-                variant="caption"
-                fontWeight={600}
-                color="#102a43"
-                style={{
-                  transform: 'rotate(-45deg)',
-                  width: '60px',
-                  textAlign: 'center',
-                }}
-              >
-                {node.label}
-              </Typography>
-            </div>
+              {node.label}
+            </Typography>
+          </div>
+        );
+        return (
+          <React.Fragment key={node.id}>
+            {node.description ? (
+              <Tooltip title={node.description} placement="top">
+                {diamondNode}
+              </Tooltip>
+            ) : diamondNode}
             {/* Connection handle outside rotated div */}
             <div
               onMouseDown={(e) => {
@@ -1279,14 +1233,15 @@ export function AgentGraphDesigner() {
     const connections: React.ReactNode[] = [];
 
     canvasNodes.forEach((node) => {
-      node.nextHops.forEach((nextHopId) => {
-        const targetNode = canvasNodes.find((n) => n.id === nextHopId);
+      node.nextHops.forEach((nextHopName) => {
+        // nextHops stores node names (labels), not IDs
+        const targetNode = canvasNodes.find((n) => n.label === nextHopName);
         if (targetNode) {
           const { path } = getNearestEdgeRoute(node, targetNode);
-          const isSelected = selectedConnection?.source === node.id && selectedConnection?.target === nextHopId;
+          const isSelected = selectedConnection?.source === node.id && selectedConnection?.target === targetNode.id;
 
           connections.push(
-            <g key={`${node.id}-${nextHopId}`}>
+            <g key={`${node.id}-${nextHopName}`}>
               {/* Invisible wider path for easier clicking */}
               <path
                 d={path}
@@ -1294,7 +1249,7 @@ export function AgentGraphDesigner() {
                 strokeWidth={14}
                 fill="none"
                 style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-                onMouseDown={(e) => handleConnectionClick(node.id, nextHopId, e)}
+                onMouseDown={(e) => handleConnectionClick(node.id, targetNode.id, e)}
               />
               {/* Visible path */}
               <path
