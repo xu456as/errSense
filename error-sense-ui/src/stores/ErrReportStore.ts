@@ -21,6 +21,7 @@ interface ErrReportState {
 interface ErrReportActions {
   getErrReport: (filters: DeveloperFilters) => Promise<void>;
   chat: (errItemId: string, userMessage: MessageItem) => Promise<void>;
+  pullChatHistory: (errItemId: string) => Promise<void>;
 }
 
 const initialState: ErrReportState = {
@@ -69,6 +70,39 @@ export const useErrReportStore = create<ErrReportState & ErrReportActions>((set,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load err items';
+      console.error(message);
+    }
+  },
+  pullChatHistory: async (errItemId: string) => {
+    try {
+      const { errItems, errItemChatMap } = get();
+      const errReportItem = errItems.find(item => item.id === errItemId);
+      if (!errReportItem) {
+        console.error('ErrReportItem not found:', errItemId);
+        return;
+      }
+
+      const existingChatContext = errItemChatMap[errItemId] || { item: errReportItem, history: [] };
+      const requestContext: ChatContext = {
+        item: errReportItem,
+        history: existingChatContext.history
+      };
+
+      const response = await apiPost<MessageItem[]>('/api/v1/errsense/report/pullChatHistory', requestContext);
+
+      if (response && response.length > 0) {
+        set(state => ({
+          errItemChatMap: {
+            ...state.errItemChatMap,
+            [errItemId]: {
+              ...existingChatContext,
+              history: [...existingChatContext.history, ...response]
+            }
+          }
+        }));
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to pull chat history';
       console.error(message);
     }
   }
