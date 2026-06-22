@@ -80,7 +80,7 @@ function layoutNodes(nodes: AgentNodeDTO[]): Record<string, NodeMeta> {
   const START_Y = 60;
   const START_X = 100;
   nodes.forEach((node, index) => {
-    meta[node.nodeName] = {
+    meta[String(node.id)] = {  // Use String(node.id) as key to match handleCompact
       x: START_X,
       y: START_Y + index * VERTICAL_GAP,
       type: 'square',
@@ -618,6 +618,12 @@ export function AgentGraphDesigner() {
     if (nodes.length === 0) return;
 
     // --- 1. Kahn's algorithm for topological layering ---
+    // Create a map from node name to node ID since nextHops stores node names
+    const nodeNameToId: Record<string, string> = {};
+    nodes.forEach((n) => {
+      nodeNameToId[n.label] = n.id;
+    });
+
     const inDegree: Record<string, number> = {};
     const children: Record<string, string[]> = {};
     const parents: Record<string, string[]> = {};
@@ -627,11 +633,13 @@ export function AgentGraphDesigner() {
       parents[n.id] = [];
     });
     nodes.forEach((n) => {
-      n.nextHops.forEach((h) => {
-        if (inDegree[h] !== undefined) {
-          inDegree[h]++;
-          children[n.id].push(h);
-          parents[h].push(n.id);
+      n.nextHops.forEach((hopName) => {
+        // Convert node name to node ID
+        const hopId = nodeNameToId[hopName];
+        if (hopId !== undefined && inDegree[hopId] !== undefined) {
+          inDegree[hopId]++;
+          children[n.id].push(hopId);
+          parents[hopId].push(n.id);
         }
       });
     });
@@ -719,11 +727,11 @@ export function AgentGraphDesigner() {
     }
 
     // --- 4. Assign positions ---
-    const VERTICAL_GAP = 200;
-    const HORIZONTAL_GAP = 150;
-    const START_Y = 60;
+    const VERTICAL_GAP = 250;  // Vertical distance between levels (increased for better visibility)
+    const HORIZONTAL_GAP = 180;  // Horizontal distance between nodes in same level (increased)
+    const START_Y = 80;
     const START_X = 100;
-    const NODE_WIDTH = 80;
+    const NODE_WIDTH = 120;  // Use actual node width for normal nodes
 
     let maxNodesInLevel = 0;
     Object.values(levelGroups).forEach((g) => {
