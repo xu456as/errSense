@@ -44,6 +44,7 @@ interface Option {
   validationMessage?: string;  // 验证失败提示
   isEnd?: boolean;  // 是否是结束选项
   endMessage?: string;  // 结束时的消息
+  isMarkdown?: boolean;  // 是否是markdown编辑器
 }
 
 // 问题节点配置
@@ -135,10 +136,11 @@ const QUESTION_TREE: Record<string, QuestionNode> = {
         id: 'provide_method',
         label: '📝 提供我的方法',
         requiresInput: true,
-        inputPlaceholder: '请输入您的解决方案',
+        inputPlaceholder: '请输入您的解决方案（支持Markdown）',
         inputType: 'text',
         nextNodeId: 'root',
-        action: 'provide_method'
+        action: 'provide_method',
+        isMarkdown: true
       }
     ]
   },
@@ -455,6 +457,12 @@ export default function GuidedChatBox({
     await executeOption(currentOption, inputValue.trim());
   };
 
+  const insertMarkdown = (prefix: string, suffix: string, placeholder: string) => {
+    setInputValue(prev => {
+      return prev + prefix + placeholder + suffix;
+    });
+  };
+
   // 返回首页
   const handleGoHome = () => {
     navigateToNode('root', {} as Option);
@@ -546,46 +554,99 @@ export default function GuidedChatBox({
       <Paper elevation={0} sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
         {currentOption ? (
           <Stack spacing={1}>
-            <Stack direction="row" spacing={2}>
-              <TextField
-                fullWidth
-                autoFocus
-                type={currentOption.inputType || 'text'}
-                placeholder={currentOption.inputPlaceholder || '请输入...'}
-                value={inputValue}
-                onChange={(e) => {
-                  setInputValue(e.target.value);
-                  setValidationError('');
-                }}
-                onKeyDown={handleKeyPress}
-                disabled={isLoading}
-                error={!!validationError}
-                helperText={validationError}
-                variant="outlined"
+            {currentOption.isMarkdown ? (
+              // Markdown编辑器区域
+              <Stack spacing={2}>
+                <Box sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, overflow: 'hidden' }}>
+                  <Box sx={{ display: 'flex', gap: 1, p: 1, bgcolor: theme.palette.grey[50], borderBottom: `1px solid ${theme.palette.divider}` }}>
+                    <Button size="small" onClick={() => insertMarkdown('**', '**', 'bold')}>B</Button>
+                    <Button size="small" onClick={() => insertMarkdown('*', '*', 'italic')}>I</Button>
+                    <Button size="small" onClick={() => insertMarkdown('```', '```', 'code')}>Code</Button>
+                    <Button size="small" onClick={() => insertMarkdown('- ', '', 'list')}>List</Button>
+                    <Button size="small" onClick={() => insertMarkdown('# ', '', 'heading')}>H1</Button>
+                    <Button size="small" onClick={() => insertMarkdown('## ', '', 'heading')}>H2</Button>
+                    <Button size="small" onClick={() => insertMarkdown('[', '](url)', 'link')}>Link</Button>
+                    <Button size="small" onClick={() => insertMarkdown('![', '](url)', 'image')}>Img</Button>
+                  </Box>
+                  <textarea
+                    style={{ width: '100%', minHeight: '150px', padding: '12px', border: 'none', resize: 'vertical', fontFamily: 'monospace' }}
+                    placeholder={currentOption.inputPlaceholder || '请输入...'}
+                    value={inputValue}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      setValidationError('');
+                    }}
+                    disabled={isLoading}
+                  />
+                </Box>
+                <Stack direction="row" spacing={2}>
+                  <Button
+                    size="small"
+                    onClick={() => setCurrentOption(null)}
+                    disabled={isLoading}
+                  >
+                    取消
+                  </Button>
+                  <IconButton
+                    color="primary"
+                    onClick={handleSubmitInput}
+                    disabled={!inputValue.trim() || isLoading}
+                    sx={{
+                      bgcolor: theme.palette.primary.main,
+                      color: 'white',
+                      '&:hover': { bgcolor: theme.palette.primary.dark },
+                      '&.Mui-disabled': { bgcolor: theme.palette.grey[300] }
+                    }}
+                  >
+                    <Send />
+                  </IconButton>
+                </Stack>
+              </Stack>
+            ) : (
+              // 普通输入框
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  fullWidth
+                  autoFocus
+                  type={currentOption.inputType || 'text'}
+                  placeholder={currentOption.inputPlaceholder || '请输入...'}
+                  value={inputValue}
+                  onChange={(e) => {
+                    setInputValue(e.target.value);
+                    setValidationError('');
+                  }}
+                  onKeyDown={handleKeyPress}
+                  disabled={isLoading}
+                  error={!!validationError}
+                  helperText={validationError}
+                  variant="outlined"
+                  size="small"
+                />
+                <IconButton
+                  color="primary"
+                  onClick={handleSubmitInput}
+                  disabled={!inputValue.trim() || isLoading}
+                  sx={{
+                    bgcolor: theme.palette.primary.main,
+                    color: 'white',
+                    '&:hover': { bgcolor: theme.palette.primary.dark },
+                    '&.Mui-disabled': { bgcolor: theme.palette.grey[300] }
+                  }}
+                >
+                  <Send />
+                </IconButton>
+              </Stack>
+            )}
+            {!currentOption.isMarkdown && (
+              <Button
                 size="small"
-              />
-              <IconButton
-                color="primary"
-                onClick={handleSubmitInput}
-                disabled={!inputValue.trim() || isLoading}
-                sx={{
-                  bgcolor: theme.palette.primary.main,
-                  color: 'white',
-                  '&:hover': { bgcolor: theme.palette.primary.dark },
-                  '&.Mui-disabled': { bgcolor: theme.palette.grey[300] }
-                }}
+                onClick={() => setCurrentOption(null)}
+                disabled={isLoading}
+                sx={{ alignSelf: 'flex-start' }}
               >
-                <Send />
-              </IconButton>
-            </Stack>
-            <Button
-              size="small"
-              onClick={() => setCurrentOption(null)}
-              disabled={isLoading}
-              sx={{ alignSelf: 'flex-start' }}
-            >
-              取消
-            </Button>
+                取消
+              </Button>
+            )}
           </Stack>
         ) : (
           <Box sx={{ textAlign: 'center', py: 1 }}>
