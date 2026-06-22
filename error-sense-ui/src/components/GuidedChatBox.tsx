@@ -246,6 +246,7 @@ export default function GuidedChatBox({
 
   const chat = useErrReportStore(state => state.chat);
   const errItemChatMap = useErrReportStore(state => state.errItemChatMap);
+  const pullChatHistory = useErrReportStore(state => state.pullChatHistory);
   const chatHistory = errItemChatMap[errItemId]?.history || [];
 
   const convertToMessage = (item: MessageItem, isQuestion = true, options?: Option[], questionNode?: QuestionNode): Message => ({
@@ -309,6 +310,18 @@ export default function GuidedChatBox({
       }
     }
   }, [errItemId]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (errItemId) {
+        pullChatHistory(errItemId);
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [errItemId, pullChatHistory]);
 
   const [currentNode, setCurrentNode] = useState<QuestionNode>(QUESTION_TREE['root']);
   const [context, setContext] = useState<DialogContext>({

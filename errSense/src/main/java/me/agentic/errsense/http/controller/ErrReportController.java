@@ -9,14 +9,34 @@ import me.agentic.errsense.contract.enums.CriticalLevel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/errsense/report")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class ErrReportController {
+    @PostMapping("/pullChatHistory")
+    public ResponseEntity<List<MessageItem>> chatHistory(@RequestBody ChatContext context) {
+        String userInput = "";
+        if (context.getHistory() != null && !context.getHistory().isEmpty()) {
+            MessageItem lastMessage = context.getHistory().get(context.getHistory().size() - 1);
+            if ("user".equals(lastMessage.getRole())) {
+                userInput = lastMessage.getContent();
+            }
+        }
 
+        String responseContent = generateMockResponse(userInput, context.getItem());
+        MessageItem response = new MessageItem();
+        response.setId((int) System.currentTimeMillis());
+        response.setRole("assistant");
+        response.setType(me.agentic.errsense.contract.enums.MessageType.Answer);
+        response.setContent(responseContent);
+        response.setTimestamp(new java.util.Date());
+
+        return ResponseEntity.ok(Collections.singletonList(response));
+//        return ResponseEntity.ok(Collections.emptyList());
+    }
     @PostMapping("/chat")
     public ResponseEntity<MessageItem> chat(@RequestBody ChatContext context) {
         String userInput = "";
